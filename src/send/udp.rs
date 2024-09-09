@@ -12,9 +12,11 @@ pub struct UdpSender {
 
 impl UdpSender {
     pub fn new(to_bind: SocketAddr, to_udp: SocketAddr, min_buf_size: u64) -> Self {
-        let mut socket = net::UdpSocket::bind(to_bind).unwrap();
-        sock_utils::set_socket_send_buffer_size(&mut socket, i32::MAX).unwrap();
-        let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket).unwrap();
+        let mut socket = net::UdpSocket::bind(to_bind).expect("Cannot bind udp socket");
+        sock_utils::set_socket_send_buffer_size(&mut socket, i32::MAX)
+            .expect("Cannot set send buffer size");
+        let sock_buffer_size =
+            sock_utils::get_socket_send_buffer_size(&socket).expect("Cannot get send buffer size");
         log::info!("UDP socket send buffer size set to {sock_buffer_size}");
         if (sock_buffer_size as u64) < 2 * min_buf_size {
             log::warn!("UDP socket send buffer may be too small to achieve optimal performances");
@@ -22,7 +24,7 @@ impl UdpSender {
         }
         //let udp_messages = UdpMessages::new_sender(socket, usize::from(max_messages), to_udp);
         //
-        socket.connect(to_udp).unwrap();
+        socket.connect(to_udp).expect("Cannot connect udp socket");
 
         Self {
             socket,

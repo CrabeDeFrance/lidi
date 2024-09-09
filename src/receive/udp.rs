@@ -24,13 +24,15 @@ impl UdpReceiver {
             from_udp,
             from_udp_mtu
         );
-        let mut socket = net::UdpSocket::bind(from_udp).unwrap();
+        let mut socket = net::UdpSocket::bind(from_udp).expect("Cannot bind udp socket");
 
         // set recv buf size to maximum allowed by system conf
-        sock_utils::set_socket_recv_buffer_size(&mut socket, i32::MAX).unwrap();
+        sock_utils::set_socket_recv_buffer_size(&mut socket, i32::MAX)
+            .expect("Cannot set recv buffer size");
 
         // check if it is big enough or print warning
-        let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&socket).unwrap();
+        let sock_buffer_size =
+            sock_utils::get_socket_recv_buffer_size(&socket).expect("Cannot get recv buffer size");
         log::info!("UDP socket receive buffer size set to {sock_buffer_size}");
         if (sock_buffer_size as u64) < 5 * min_buf_size {
             log::warn!("UDP socket recv buffer is be too small to achieve optimal performances");

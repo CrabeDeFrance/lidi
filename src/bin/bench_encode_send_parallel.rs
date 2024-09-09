@@ -37,7 +37,7 @@ fn process(encoding: Encoding, tx_socket: UdpSocket, max_count: u64, payload: Ve
         let block_id = 0;
         let packets = encoding.encode(payload.clone(), block_id);
         packets.iter().for_each(|packet| {
-            tx_socket.send(packet.data()).unwrap();
+            tx_socket.send(packet.data()).expect("Cannot send packet");
         });
 
         counter += 1;
@@ -59,7 +59,7 @@ pub fn main() {
     let object_transmission_info = object_transmission_information(mtu, block_size);
 
     // create our sockets
-    let _rx_socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 8888)).unwrap();
+    let _rx_socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 8888)).expect("Cannot bind udp socket");
 
     // create our encoding module
     let encoding = Encoding::new(object_transmission_info, repair_block_size);
@@ -76,8 +76,10 @@ pub fn main() {
     (0..thread_count).for_each(|_| {
         let message = payload.clone();
         let encoding = encoding.clone();
-        let tx_socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
-        tx_socket.connect((Ipv4Addr::LOCALHOST, 8888)).unwrap();
+        let tx_socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("Cannot bind udp socket");
+        tx_socket
+            .connect((Ipv4Addr::LOCALHOST, 8888))
+            .expect("Cannot connect udp socket");
 
         let thread = std::thread::spawn(move || process(encoding, tx_socket, max_count, message));
         threads.push(thread);
@@ -85,7 +87,7 @@ pub fn main() {
 
     threads
         .into_iter()
-        .for_each(|thread| thread.join().unwrap());
+        .for_each(|thread| thread.join().expect("Cannot join thread"));
 
     let elapsed = now.elapsed().as_secs_f64();
 

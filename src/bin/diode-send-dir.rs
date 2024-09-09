@@ -69,7 +69,12 @@ fn watch_files(
                 let filename = osstr.to_string_lossy().to_string();
                 let mut path = PathBuf::from(dir);
                 path.push(&filename);
-                match send_file(config, &mut diode, path.to_str().unwrap(), last_file) {
+                match send_file(
+                    config,
+                    &mut diode,
+                    path.to_str().expect("Cannot convert path to string"),
+                    last_file,
+                ) {
                     Ok(total) => {
                         log::info!("{filename} sent, {total} bytes");
                     }

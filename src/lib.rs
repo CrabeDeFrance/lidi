@@ -49,9 +49,9 @@ pub fn init_logger(log_config: Option<&String>, debug: u8) {
                     .build("stdout", Box::new(stdout)),
             )
             .build(Root::builder().appender("stdout").build(level))
-            .unwrap();
+            .expect("Cannot build log config");
 
-        let _handle = log4rs::init_config(config).unwrap();
+        let _handle = log4rs::init_config(config).expect("Cannot init log4rs config");
     }
 }
 
@@ -60,6 +60,6 @@ pub fn init_metrics(prom_url: Option<&String>) {
         PrometheusBuilder::new()
             .with_http_listener(SocketAddr::from_str(addr).expect("Invalid metrics address"))
             .install()
-            .unwrap();
+            .expect("Cannot init prometheus");
     }
 }

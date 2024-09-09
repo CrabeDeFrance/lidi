@@ -84,12 +84,12 @@ fn init_logger() {
     let file = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
         .build("log/requests.log")
-        .unwrap();
+        .expect("Cannot create file appender");
 
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .appender(Appender::builder().build("file", Box::new(file)))
         .build(Root::builder().appender("stdout").build(LevelFilter::Info))
-        .unwrap();
-    let _handle = log4rs::init_config(config).unwrap();
+        .expect("Cannot create config builder");
+    let _handle = log4rs::init_config(config).expect("Cannot init log4rs");
 }

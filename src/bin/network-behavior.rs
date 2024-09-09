@@ -305,7 +305,7 @@ fn init_logger() {
         // Pattern: https://docs.rs/log4rs/*/log4rs/encode/pattern/index.html
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
         .build(file_path)
-        .unwrap();
+        .expect("Cannot create file appender");
 
     // Log Trace level output to file where trace is the default level
     // and the programmatically specified level to stderr.
@@ -322,11 +322,11 @@ fn init_logger() {
                 .appender("stderr")
                 .build(LevelFilter::Trace),
         )
-        .unwrap();
+        .expect("Cannot create config builder");
 
     // Use this to change log levels at runtime.
     // This means you can change the default log level to trace
     // if you are trying to debug an issue and need more logs on then turn it off
     // once you are done.
-    let _handle = log4rs::init_config(config).unwrap();
+    let _handle = log4rs::init_config(config).expect("Cannot init log4rs");
 }

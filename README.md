@@ -59,4 +59,6 @@ And result will be in target/criterion/encoding/profile/flamegraph.svg
  - [ ] cargo bench test case to check performance of raptorq decoding when parts are missing
  - [ ] add test with packet / data corruption (ensure correct raptorq behavior)
  - [ ] add ansible script to test performances using multiple computers
+ - [ ] remove unsafe
+ - [ ] fix clippy
 

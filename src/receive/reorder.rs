@@ -470,7 +470,9 @@ mod tests {
         let mut reorder = Reorder::new(1, 0, 1);
 
         // must succeed
-        let (flags, session, block, packet) = reorder.push(header, packet).unwrap();
+        let (flags, session, block, packet) = reorder
+            .push(header, packet)
+            .expect("Cannot push packet in reorder module");
         assert!(flags.contains(MessageType::End));
         assert_eq!(session, 0);
         assert_eq!(block, 0);
@@ -523,7 +525,9 @@ mod tests {
         assert!(ret.is_none());
 
         // must succeed
-        let (flags, session, block, packet) = reorder.push(header, packet).unwrap();
+        let (flags, session, block, packet) = reorder
+            .push(header, packet)
+            .expect("Cannot push packet in reorder module");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -543,7 +547,9 @@ mod tests {
         assert!(ret.is_none());
 
         // must succeed
-        let (flags, session, block, packet) = reorder.push(header, packet).unwrap();
+        let (flags, session, block, packet) = reorder
+            .push(header, packet)
+            .expect("Cannot push packet in reorder module");
 
         // checks
         assert!(flags.contains(MessageType::Data));
@@ -559,7 +565,9 @@ mod tests {
         assert!(ret.is_none());
 
         // must succeed
-        let (flags, session, block, packet) = reorder.push(header, packet).unwrap();
+        let (flags, session, block, packet) = reorder
+            .push(header, packet)
+            .expect("Cannot push packet in reorder module");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -581,7 +589,8 @@ mod tests {
         let (header, packet) = build_packet(MessageType::Data, 0, 0);
 
         // must succeed
-        let (flags, session, block, packet) = reorder.push(header, packet).unwrap();
+        let (flags, session, block, packet) =
+            reorder.push(header, packet).expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::Data));
@@ -592,7 +601,7 @@ mod tests {
         // XXX TODO we should try pop
 
         // must succeed
-        let (flags, session, block, packet) = reorder.pop_first().unwrap();
+        let (flags, session, block, packet) = reorder.pop_first().expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -614,7 +623,8 @@ mod tests {
         let (header, packet) = build_packet(MessageType::End, 0, 0);
 
         // must succeed
-        let (flags, session, block, packet) = reorder.push(header, packet).unwrap();
+        let (flags, session, block, packet) =
+            reorder.push(header, packet).expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -625,7 +635,7 @@ mod tests {
         // XXX TODO we should try pop
 
         // must succeed
-        let (flags, session, block, packet) = reorder.pop_first().unwrap();
+        let (flags, session, block, packet) = reorder.pop_first().expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -657,7 +667,8 @@ mod tests {
         assert!(ret.is_none());
 
         // must succeed
-        let (flags, session, block, packet) = reorder.push(header, packet).unwrap();
+        let (flags, session, block, packet) =
+            reorder.push(header, packet).expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -666,7 +677,7 @@ mod tests {
         assert_eq!(packet.len(), 2);
 
         // must succeed
-        let (flags, session, block, packet) = reorder.pop_first().unwrap();
+        let (flags, session, block, packet) = reorder.pop_first().expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -717,7 +728,8 @@ mod tests {
         assert!(ret.is_none());
 
         // must succeed
-        let (flags, session, block, packet) = reorder.push(header, packet).unwrap();
+        let (flags, session, block, packet) =
+            reorder.push(header, packet).expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::Data));
@@ -726,7 +738,7 @@ mod tests {
         assert_eq!(packet.len(), 2);
 
         // must succeed
-        let (flags, session, block, packet) = reorder.pop_first().unwrap();
+        let (flags, session, block, packet) = reorder.pop_first().expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -735,7 +747,7 @@ mod tests {
         assert_eq!(packet.len(), 2);
 
         // must succeed
-        let (flags, session, block, packet) = reorder.pop_first().unwrap();
+        let (flags, session, block, packet) = reorder.pop_first().expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::Data));
@@ -744,7 +756,7 @@ mod tests {
         assert_eq!(packet.len(), 2);
 
         // must succeed
-        let (flags, session, block, packet) = reorder.pop_first().unwrap();
+        let (flags, session, block, packet) = reorder.pop_first().expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -767,7 +779,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(MAX_DELAY_MS as u64 + 50));
 
         // must succeed
-        let (flags, session, block, packet) = reorder.pop_first().unwrap();
+        let (flags, session, block, packet) = reorder.pop_first().expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -804,7 +816,8 @@ mod tests {
         let (header, packet) = build_packet(MessageType::Data, 0, MAX_ACTIVE_QUEUES as u8);
 
         // must fail
-        let (flags, session, block, packets) = reorder.push(header, packet).unwrap();
+        let (flags, session, block, packets) =
+            reorder.push(header, packet).expect("reorder module error");
         // checks
         assert!(flags.contains(MessageType::Data));
         assert_eq!(session, 0);
