@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sending files with Lidi &mdash; Lidi 0.7.0 documentation</title>
+  <title>Exchanging files with Lidi &mdash; Lidi 0.8.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
 
@@ -15,13 +15,13 @@
   
         <script src="_static/jquery.js?v=5d32c60e"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script src="_static/documentation_options.js?v=fe7df9b0"></script>
+        <script src="_static/documentation_options.js?v=486e5634"></script>
         <script src="_static/doctools.js?v=9a2dae69"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="Tweaking parameters" href="tweaking.html" /> 
+    <link rel="prev" title="Metrics" href="metrics.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -46,9 +46,15 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="gstarted.html">Getting started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tweaking.html">Tweaking parameters</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Sending files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Basic command line parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Exchanging files with Lidi</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#sending-files">Sending files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#receiving-files">Receiving files</a></li>
+</ul>
+</li>
 </ul>
 
         </div>
@@ -65,7 +71,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Sending files with Lidi</li>
+      <li class="breadcrumb-item active">Exchanging files with Lidi</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/files.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -75,49 +81,80 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="sending-files-with-lidi">
-<h1>Sending files with Lidi<a class="headerlink" href="#sending-files-with-lidi" title="Link to this heading"></a></h1>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Usage</span><span class="p">:</span> <span class="n">diode</span><span class="o">-</span><span class="n">send</span><span class="o">-</span><span class="n">file</span> <span class="p">[</span><span class="n">OPTIONS</span><span class="p">]</span> <span class="o">&lt;--</span><span class="n">to_tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;|--</span><span class="n">to_unix</span> <span class="o">&lt;</span><span class="n">path</span><span class="o">&gt;&gt;</span> <span class="o">&lt;</span><span class="n">file</span><span class="o">&gt;...</span>
+  <section id="exchanging-files-with-lidi">
+<h1>Exchanging files with Lidi<a class="headerlink" href="#exchanging-files-with-lidi" title="Link to this heading"></a></h1>
+<p>There are 3 applications with lidi which are used to test or for a first setup.
+Two of them can be used to send packets, the last one is used to receive packets.</p>
+<p>These application implements a simple protocol to be able to send multiple files in the same session.
+Files on receiver side will be recreated with their original name and their unix metadata.</p>
+<p>They help to understand how to build your own client/server application.</p>
+<section id="sending-files">
+<h2>Sending files<a class="headerlink" href="#sending-files" title="Link to this heading"></a></h2>
+<p>To send files, there is an application which can be used in “one-shot” mode, sending all files provided in command line as fast as possible, then disconnects.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Usage</span><span class="p">:</span> <span class="n">diode</span><span class="o">-</span><span class="n">send</span><span class="o">-</span><span class="n">file</span> <span class="p">[</span><span class="n">OPTIONS</span><span class="p">]</span> <span class="p">[</span><span class="n">FILE</span><span class="p">]</span>
 
 <span class="n">Arguments</span><span class="p">:</span>
-  <span class="o">&lt;</span><span class="n">file</span><span class="o">&gt;...</span>
+  <span class="p">[</span><span class="n">FILE</span><span class="p">]</span><span class="o">...</span>  <span class="n">List</span> <span class="n">of</span> <span class="n">files</span> <span class="n">to</span> <span class="n">send</span>
 
 <span class="n">Options</span><span class="p">:</span>
-      <span class="o">--</span><span class="n">to_tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>        <span class="n">IP</span> <span class="n">address</span> <span class="ow">and</span> <span class="n">port</span> <span class="n">to</span> <span class="n">connect</span> <span class="ow">in</span> <span class="n">TCP</span> <span class="n">to</span> <span class="n">diode</span><span class="o">-</span><span class="n">send</span>
-      <span class="o">--</span><span class="n">to_unix</span> <span class="o">&lt;</span><span class="n">path</span><span class="o">&gt;</span>          <span class="n">Path</span> <span class="n">of</span> <span class="n">Unix</span> <span class="n">socket</span> <span class="n">to</span> <span class="n">connect</span> <span class="n">to</span> <span class="n">diode</span><span class="o">-</span><span class="n">send</span>
-      <span class="o">--</span><span class="n">buffer_size</span> <span class="o">&lt;</span><span class="n">nb_bytes</span><span class="o">&gt;</span>  <span class="n">Size</span> <span class="n">of</span> <span class="n">file</span> <span class="n">read</span><span class="o">/</span><span class="n">client</span> <span class="n">write</span> <span class="n">buffer</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mi">4194304</span><span class="p">]</span>
+      <span class="o">--</span><span class="n">to</span><span class="o">-</span><span class="n">tcp</span> <span class="o">&lt;</span><span class="n">TO_TCP</span><span class="o">&gt;</span>         <span class="n">IP</span> <span class="n">address</span> <span class="ow">and</span> <span class="n">port</span> <span class="n">to</span> <span class="n">connect</span> <span class="ow">in</span> <span class="n">TCP</span> <span class="n">to</span> <span class="n">diode</span><span class="o">-</span><span class="n">send</span> <span class="p">(</span><span class="n">ex</span> <span class="s2">&quot;127.0.0.1:5001&quot;</span><span class="p">)</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">5001</span><span class="p">]</span>
+      <span class="o">--</span><span class="n">buffer</span><span class="o">-</span><span class="n">size</span> <span class="o">&lt;</span><span class="n">nb_bytes</span><span class="o">&gt;</span>  <span class="n">Size</span> <span class="n">of</span> <span class="n">file</span> <span class="n">buffer</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mi">8196</span><span class="p">]</span>
       <span class="o">--</span><span class="nb">hash</span>                    <span class="n">Compute</span> <span class="n">a</span> <span class="nb">hash</span> <span class="n">of</span> <span class="n">file</span> <span class="n">content</span> <span class="p">(</span><span class="n">default</span> <span class="ow">is</span> <span class="n">false</span><span class="p">)</span>
-  <span class="o">-</span><span class="n">h</span><span class="p">,</span> <span class="o">--</span><span class="n">help</span>                    <span class="n">Print</span> <span class="n">help</span>
-  <span class="o">-</span><span class="n">V</span><span class="p">,</span> <span class="o">--</span><span class="n">version</span>                 <span class="n">Print</span> <span class="n">version</span>
+      <span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">config</span> <span class="o">&lt;</span><span class="n">file</span><span class="o">&gt;</span>       <span class="n">Path</span> <span class="n">to</span> <span class="n">log</span> <span class="n">configuration</span> <span class="n">file</span>
+      <span class="o">--</span><span class="n">debug</span>                   <span class="n">Verbosity</span> <span class="n">level</span><span class="o">.</span> <span class="n">Using</span> <span class="n">it</span> <span class="n">multiple</span> <span class="n">times</span> <span class="n">adds</span> <span class="n">more</span> <span class="n">logs</span>
+      <span class="o">--</span><span class="n">help</span>                    <span class="n">Print</span> <span class="n">help</span>
+      <span class="o">--</span><span class="n">version</span>                 <span class="n">Print</span> <span class="n">version</span>
 </pre></div>
 </div>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Usage</span><span class="p">:</span> <span class="n">diode</span><span class="o">-</span><span class="n">receive</span><span class="o">-</span><span class="n">file</span> <span class="p">[</span><span class="n">OPTIONS</span><span class="p">]</span> <span class="p">[</span><span class="nb">dir</span><span class="p">]</span>
-
-<span class="n">Arguments</span><span class="p">:</span>
-  <span class="p">[</span><span class="nb">dir</span><span class="p">]</span>  <span class="n">Output</span> <span class="n">directory</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="o">.</span><span class="p">]</span>
+<p>Another application is here to watch for changes in a given directory and send files them as they come : diode-send-dir</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Usage</span><span class="p">:</span> <span class="n">diode</span><span class="o">-</span><span class="n">send</span><span class="o">-</span><span class="nb">dir</span> <span class="p">[</span><span class="n">OPTIONS</span><span class="p">]</span> <span class="o">&lt;</span><span class="n">DIR</span><span class="o">&gt;</span>
 
 <span class="n">Options</span><span class="p">:</span>
-      <span class="o">--</span><span class="n">from_tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>      <span class="n">IP</span> <span class="n">address</span> <span class="ow">and</span> <span class="n">port</span> <span class="n">to</span> <span class="n">accept</span> <span class="n">TCP</span> <span class="n">connections</span> <span class="kn">from</span> <span class="nn">diode</span><span class="o">-</span><span class="n">receive</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">7000</span><span class="p">]</span>
-      <span class="o">--</span><span class="n">from_unix</span> <span class="o">&lt;</span><span class="n">path</span><span class="o">&gt;</span>        <span class="n">Path</span> <span class="n">of</span> <span class="n">Unix</span> <span class="n">socket</span> <span class="n">to</span> <span class="n">accept</span> <span class="n">Unix</span> <span class="n">connections</span> <span class="kn">from</span> <span class="nn">diode</span><span class="o">-</span><span class="n">receive</span>
-      <span class="o">--</span><span class="n">buffer_size</span> <span class="o">&lt;</span><span class="n">nb_bytes</span><span class="o">&gt;</span>  <span class="n">Size</span> <span class="n">of</span> <span class="n">client</span> <span class="n">write</span> <span class="n">buffer</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mi">4194304</span><span class="p">]</span>
-      <span class="o">--</span><span class="nb">hash</span>                    <span class="n">Verify</span> <span class="n">the</span> <span class="nb">hash</span> <span class="n">of</span> <span class="n">file</span> <span class="n">content</span> <span class="p">(</span><span class="n">default</span> <span class="ow">is</span> <span class="n">false</span><span class="p">)</span>
-  <span class="o">-</span><span class="n">h</span><span class="p">,</span> <span class="o">--</span><span class="n">help</span>                    <span class="n">Print</span> <span class="n">help</span>
-  <span class="o">-</span><span class="n">V</span><span class="p">,</span> <span class="o">--</span><span class="n">version</span>                 <span class="n">Print</span> <span class="n">version</span>
+      <span class="o">--</span><span class="n">to</span><span class="o">-</span><span class="n">tcp</span> <span class="o">&lt;</span><span class="n">TO_TCP</span><span class="o">&gt;</span>                <span class="n">IP</span> <span class="n">address</span> <span class="ow">and</span> <span class="n">port</span> <span class="n">to</span> <span class="n">connect</span> <span class="ow">in</span> <span class="n">TCP</span> <span class="n">to</span> <span class="n">diode</span><span class="o">-</span><span class="n">send</span> <span class="p">(</span><span class="n">ex</span> <span class="s2">&quot;127.0.0.1:5001&quot;</span><span class="p">)</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">5001</span><span class="p">]</span>
+      <span class="o">--</span><span class="n">buffer</span><span class="o">-</span><span class="n">size</span> <span class="o">&lt;</span><span class="n">BUFFER_SIZE</span><span class="o">&gt;</span>      <span class="n">Size</span> <span class="n">of</span> <span class="n">file</span> <span class="n">buffer</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mi">8196</span><span class="p">]</span>
+      <span class="o">--</span><span class="nb">hash</span>                           <span class="n">Compute</span> <span class="n">a</span> <span class="nb">hash</span> <span class="n">of</span> <span class="n">file</span> <span class="n">content</span> <span class="p">(</span><span class="n">default</span> <span class="ow">is</span> <span class="n">false</span><span class="p">)</span>
+      <span class="o">--</span><span class="nb">dir</span> <span class="o">&lt;</span><span class="n">DIR</span><span class="o">&gt;</span>                      <span class="n">Directory</span> <span class="n">containing</span> <span class="n">files</span> <span class="n">to</span> <span class="n">send</span>
+      <span class="o">--</span><span class="n">maximum</span><span class="o">-</span><span class="n">files</span> <span class="o">&lt;</span><span class="n">MAXIMUM_FILES</span><span class="o">&gt;</span>  <span class="n">maximum</span> <span class="n">number</span> <span class="n">of</span> <span class="n">files</span> <span class="n">to</span> <span class="n">send</span> <span class="n">per</span> <span class="n">session</span>
+      <span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">config</span> <span class="o">&lt;</span><span class="n">LOG_CONFIG</span><span class="o">&gt;</span>        <span class="n">Path</span> <span class="n">to</span> <span class="n">log</span> <span class="n">configuration</span> <span class="n">file</span>
+      <span class="o">--</span><span class="n">debug</span><span class="o">...</span>                       <span class="n">Verbosity</span> <span class="n">level</span><span class="o">.</span> <span class="n">Using</span> <span class="n">it</span> <span class="n">multiple</span> <span class="n">times</span> <span class="n">adds</span> <span class="n">more</span> <span class="n">logs</span>
+      <span class="o">--</span><span class="n">help</span>                           <span class="n">Print</span> <span class="n">help</span>
+      <span class="o">--</span><span class="n">version</span>                        <span class="n">Print</span> <span class="n">version</span>
 </pre></div>
 </div>
+</section>
+<section id="receiving-files">
+<h2>Receiving files<a class="headerlink" href="#receiving-files" title="Link to this heading"></a></h2>
+<p>A single application is used to receive files in any case. It will create files in the provided directory. It will fail if a file with the same name already exists.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Usage</span><span class="p">:</span> <span class="n">diode</span><span class="o">-</span><span class="n">receive</span><span class="o">-</span><span class="n">file</span> <span class="p">[</span><span class="n">OPTIONS</span><span class="p">]</span> <span class="o">&lt;</span><span class="n">DIR</span><span class="o">&gt;</span>
+
+<span class="n">Arguments</span><span class="p">:</span>
+  <span class="o">&lt;</span><span class="n">DIR</span><span class="o">&gt;</span>  <span class="n">Output</span> <span class="n">directory</span>
+
+  <span class="n">Options</span><span class="p">:</span>
+        <span class="o">--</span><span class="n">bind</span><span class="o">-</span><span class="n">tcp</span> <span class="o">&lt;</span><span class="n">BIND_TCP</span><span class="o">&gt;</span>        <span class="n">IP</span> <span class="n">address</span> <span class="ow">and</span> <span class="n">port</span> <span class="n">to</span> <span class="n">accept</span> <span class="n">TCP</span> <span class="n">connections</span> <span class="kn">from</span> <span class="nn">diode</span><span class="o">-</span><span class="n">receive</span> <span class="p">(</span><span class="n">default</span> <span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">5002</span><span class="p">)</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">5002</span><span class="p">]</span>
+        <span class="o">--</span><span class="n">buffer</span><span class="o">-</span><span class="n">size</span> <span class="o">&lt;</span><span class="n">BUFFER_SIZE</span><span class="o">&gt;</span>  <span class="n">Size</span> <span class="n">of</span> <span class="n">file</span> <span class="n">buffer</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mi">8196</span><span class="p">]</span>
+        <span class="o">--</span><span class="nb">hash</span>                       <span class="n">Verify</span> <span class="n">the</span> <span class="nb">hash</span> <span class="n">of</span> <span class="n">file</span> <span class="n">content</span> <span class="p">(</span><span class="n">default</span> <span class="ow">is</span> <span class="n">false</span><span class="p">)</span>
+        <span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">config</span> <span class="o">&lt;</span><span class="n">LOG_CONFIG</span><span class="o">&gt;</span>    <span class="n">Path</span> <span class="n">to</span> <span class="n">log</span> <span class="n">configuration</span> <span class="n">file</span>
+        <span class="o">--</span><span class="n">debug</span><span class="o">...</span>                   <span class="n">Verbosity</span> <span class="n">level</span><span class="o">.</span> <span class="n">Using</span> <span class="n">it</span> <span class="n">multiple</span> <span class="n">times</span> <span class="n">adds</span> <span class="n">more</span> <span class="n">logs</span>
+        <span class="o">--</span><span class="n">help</span>                       <span class="n">Print</span> <span class="n">help</span>
+        <span class="o">--</span><span class="n">version</span>                    <span class="n">Print</span> <span class="n">version</span>
+</pre></div>
+</div>
+<p>TO BE TESTED: what happen if transfer is incomplete ???</p>
+</section>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="tweaking.html" class="btn btn-neutral float-left" title="Tweaking parameters" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="metrics.html" class="btn btn-neutral float-left" title="Metrics" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2023, ANSSI-FR.</p>
+    <p>&#169; Copyright 2024, ANSSI-FR.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

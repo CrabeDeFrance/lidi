@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Getting started &mdash; Lidi 0.7.0 documentation</title>
+  <title>Getting started &mdash; Lidi 0.8.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
 
@@ -15,13 +15,13 @@
   
         <script src="_static/jquery.js?v=5d32c60e"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script src="_static/documentation_options.js?v=fe7df9b0"></script>
+        <script src="_static/documentation_options.js?v=486e5634"></script>
         <script src="_static/doctools.js?v=9a2dae69"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Command line parameters" href="parameters.html" />
+    <link rel="next" title="Basic command line parameters" href="parameters.html" />
     <link rel="prev" title="Welcome to Lidi’s documentation!" href="index.html" /> 
 </head>
 
@@ -58,9 +58,11 @@
 <li class="toctree-l2"><a class="reference internal" href="#setting-up-a-simple-case">Setting up a simple case</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tweaking.html">Tweaking parameters</a></li>
-<li class="toctree-l1"><a class="reference internal" href="files.html">Sending files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Basic command line parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Exchanging files with Lidi</a></li>
 </ul>
 
         </div>
@@ -119,33 +121,34 @@ Once <cite>rustup</cite> is available, you can simply run:</p>
 <h2>Setting up a simple case<a class="headerlink" href="#setting-up-a-simple-case" title="Link to this heading"></a></h2>
 <p>The simplest case we can set up is to have lidi sender and receiver part running on the same machine. Next, we will use <cite>netcat</cite> tool to actually send and receive data over the (software) diode link.</p>
 <p>In a first terminal, we start by running the sender part of lidi with default parameters:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send -- --to-udp 127.0.0.1:5000
 </pre></div>
 </div>
-<p>Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5000 and that the traffic will go through the diode on UDP port 6000.</p>
+<p>Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5001 (default port if –bind-tcp is not set) and that the traffic will go through the diode on UDP port 5000.</p>
 <p>Next, we run the receiving part of lidi, with default parameters too:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-receive
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-receive -- --bind-udp 127.0.0.1:5000
 </pre></div>
 </div>
-<p>This time, logging will indicate that traffic will come up on UDP port 6000 and that transferred content will be served on TCP port 7000.</p>
+<p>This time, logging will indicate that traffic will come up on UDP port 5000 and that transfered content will be served on TCP port 5002 (default port if –to-tcp is not set).</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
+<p>NOT IMPLEMENTED</p>
 <p>Warning messages about the receiver not receiving the heartbeat message may appear on the receiving part terminal. For example, this is the case if the receiver part is launched several seconds before the sender part is run.
 If it is the case, double check that the sender part is still running and that ip addresses and ports for the UDP traffic are the same on the two parts.</p>
 </div>
 <p>The diode is now waiting for TCP connections to send and receive data.
-We run a first netcat instance waiting for connection on port 7000 with the following command:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc -lvp 7000
+We run a first netcat instance waiting for connection on port 5001 with the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc -lvp 5002
 </pre></div>
 </div>
 <p>Finally, we should be able to connect and send raw data through the diode in a fourth terminal:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc 127.0.0.1 5000
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc 127.0.0.1 5001
 Hello Lidi!
 &lt;Ctrl-D&gt;
 </pre></div>
 </div>
 <p>The message should have been transfered with only forwarding UDP traffic, to finally show up in the first waiting netcat terminal window!</p>
-<p>Next steps is to review <a class="reference internal" href="parameters.html#command-line-parameters"><span class="std std-ref">Command line parameters</span></a> to adapt them to your use case, and eventually <a class="reference internal" href="tweaking.html#tweaking-parameters"><span class="std std-ref">Tweaking parameters</span></a> to achieve optimal transfer performances.</p>
+<p>Next steps is to review <a class="reference internal" href="parameters.html#command-line-parameters"><span class="std std-ref">Basic command line parameters</span></a> to adapt them to your use case, and eventually <a class="reference internal" href="performance.html#tweaking-parameters"><span class="std std-ref">Kernel parameters</span></a> to achieve optimal transfer performances.</p>
 </section>
 </section>
 
@@ -154,13 +157,13 @@ Hello Lidi!
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="index.html" class="btn btn-neutral float-left" title="Welcome to Lidi’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="parameters.html" class="btn btn-neutral float-right" title="Command line parameters" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="parameters.html" class="btn btn-neutral float-right" title="Basic command line parameters" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2023, ANSSI-FR.</p>
+    <p>&#169; Copyright 2024, ANSSI-FR.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
