@@ -21,6 +21,6 @@ jobs:
     - name: Run tests
       run: cargo test
     - name: Install behave
-      run: sudo apt install python3-behave python3-fusepy
+      run: sudo apt install python3-behave python3-fusepy python3-psutil
     - name: Run integration tests
       run: behave --tags=~fail
