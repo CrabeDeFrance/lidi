@@ -262,7 +262,7 @@ impl SenderConfig {
                     // loop on packets to send
                     SenderConfig::start_encoder_sender(for_encoding, encoding, sender);
                 })
-                .unwrap();
+                .expect("Cannot create encode & send thread");
         }
 
         log::info!(
