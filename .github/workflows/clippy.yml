@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 env:
-  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings -Dunsafe_code"
 
 jobs:
   clippy-check:
@@ -20,4 +20,4 @@ jobs:
     - uses: actions-rs/clippy-check@v1
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        args: --all-features --workspace -- -D warnings
+        args: --all-features

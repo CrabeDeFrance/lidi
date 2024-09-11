@@ -166,7 +166,7 @@ def step_impl(context, name, size):
     time.sleep(3)
     stop_diode_receive(context)
     time.sleep(5)
-    start_diode_receive(context, False)
+    start_diode_receive(context)
 
 @then('diode-file-receive file {name} in {seconds} seconds')
 def step_impl(context, name, seconds):

@@ -31,7 +31,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let packets = encoding.encode(payload, block_id);
 
     // prepare decoding
-    let decoder = Decoding::new(object_transmission_info);
+    let decoder = Decoding::new(object_transmission_info, packets.len());
 
     // now bench encoding performance
     let now = Instant::now();

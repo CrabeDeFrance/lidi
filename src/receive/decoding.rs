@@ -6,12 +6,18 @@ use raptorq::EncodingPacket;
 
 pub struct Decoding {
     object_transmission_info: raptorq::ObjectTransmissionInformation,
+    // number of packets
+    capacity: usize,
 }
 
 impl Decoding {
-    pub fn new(object_transmission_info: ObjectTransmissionInformation) -> Decoding {
+    pub fn new(
+        object_transmission_info: ObjectTransmissionInformation,
+        capacity: usize,
+    ) -> Decoding {
         Self {
             object_transmission_info,
+            capacity,
         }
     }
 
@@ -25,5 +31,9 @@ impl Decoding {
         );
 
         decoder.decode(packets)
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 }

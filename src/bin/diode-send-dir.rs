@@ -26,11 +26,11 @@ struct SendFileConfig {
     #[arg(long)]
     maximum_files: Option<usize>,
     /// Path to log configuration file
-    #[arg(short, long)]
+    #[arg(long)]
     log_config: Option<String>,
-    /// Verbosity level. Using it multiple times adds more logs.
-    #[arg(short, long, action = clap::ArgAction::Count)]
-    pub debug: u8,
+    /// Verbosity level: info, debug, warning, error ...
+    #[arg(long, default_value_t = String::from("info"))]
+    pub log_level: String,
 }
 
 fn watch_files(
@@ -98,7 +98,10 @@ fn watch_files(
 fn main() {
     let args = SendFileConfig::parse();
 
-    init_logger(args.log_config.as_ref(), args.debug);
+    if let Err(e) = init_logger(args.log_config.as_ref(), &args.log_level) {
+        eprintln!("Unable to init log {:?}: {}", args.log_config, e);
+        return;
+    }
 
     let to_tcp =
         net::SocketAddr::from_str(&args.to_tcp).expect("to-tcp must be of the form ip:port");

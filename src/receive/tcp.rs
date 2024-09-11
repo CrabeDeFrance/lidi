@@ -1,8 +1,11 @@
 //! Worker that writes decoded and reordered messages to client
 
+use nix::sys::socket::sockopt::SndBuf;
+use nix::sys::socket::{getsockopt, setsockopt};
+
 use metrics::counter;
 
-use crate::{protocol::PAYLOAD_OVERHEAD, receive, sock_utils};
+use crate::{protocol::PAYLOAD_OVERHEAD, receive};
 use std::{
     io::{self, BufWriter, Write},
     net,
@@ -32,15 +35,15 @@ impl Tcp {
         client: &mut net::TcpStream,
         buffer_size: usize,
     ) -> Result<(), receive::Error> {
-        let sock_buffer_size = sock_utils::get_socket_send_buffer_size(client)?;
-        if (sock_buffer_size as usize) < 2 * buffer_size {
-            sock_utils::set_socket_send_buffer_size(client, buffer_size as i32)?;
-            let new_sock_buffer_size = sock_utils::get_socket_send_buffer_size(client)?;
+        let sock_buffer_size = getsockopt(client, SndBuf)?;
+        if sock_buffer_size < 2 * buffer_size {
+            setsockopt(client, SndBuf, &buffer_size)?;
+            let new_sock_buffer_size = getsockopt(client, SndBuf)?;
             log::debug!(
                 "client socket send buffer size set to {}",
                 new_sock_buffer_size
             );
-            if (new_sock_buffer_size as usize) < 2 * buffer_size {
+            if new_sock_buffer_size < 2 * buffer_size {
                 log::warn!(
                     "client socket send buffer may be too small to achieve optimal performances"
                 );
