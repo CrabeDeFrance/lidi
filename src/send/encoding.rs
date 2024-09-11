@@ -12,6 +12,7 @@ pub struct Encoding {
 }
 
 impl Encoding {
+    // take care than repair block size must be over mtu to include at least one repair packet
     pub fn new(
         object_transmission_info: raptorq::ObjectTransmissionInformation,
         repair_block_size: u32,

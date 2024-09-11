@@ -1,22 +1,16 @@
 //! Worker for grouping packets according to their block numbers to handle potential UDP packets
 //! reordering
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use log::{trace, warn};
+use log::{debug, trace, warn};
 use metrics::counter;
 use raptorq::EncodingPacket;
 
 use crate::protocol::{Header, MessageType, FIRST_BLOCK_ID, FIRST_SESSION_ID};
 
 // if MAX is reached (diff en first block and last block) => force flush
-const MAX_ACTIVE_QUEUES: usize = 20;
-
-// how much time should we wait before allowing force decoding (in milliseconds)
-const MAX_DELAY_MS: u128 = 500;
-
-// how much time should we wait with no new block before changing session (in milliseconds)
-//const MAX_SESSION_DELAY_MS: u128 = 10000;
+const MAX_ACTIVE_QUEUES: usize = 50;
 
 #[derive(Eq, PartialEq, Copy, Clone)]
 enum FlushCondition {
@@ -102,8 +96,8 @@ impl Block {
         self.loop_count
     }
 
-    fn elapsed(&self) -> u128 {
-        self.last_timestamp.elapsed().as_millis()
+    fn elapsed(&self) -> Duration {
+        self.last_timestamp.elapsed()
     }
 
     fn used(&self) -> bool {
@@ -134,13 +128,20 @@ struct Session {
     last_timestamp: Instant,
     /// active = packets received for this session
     active: bool,
-    /// session_expiration_delay from config
-    session_expiration_delay: usize,
+    /// how much time should we wait with no new block before changing session
+    session_expiration_timeout: Duration,
+    /// how much time should we wait with no new block before changing session
+    block_expiration_timeout: Duration,
 }
 
 impl Session {
     /// capacity: maximum number of packets possible : nb normal + nb repair packets
-    pub fn new(session: u8, capacity: usize, session_expiration_delay: usize) -> Self {
+    pub fn new(
+        session: u8,
+        capacity: usize,
+        block_expiration_timeout: Duration,
+        session_expiration_timeout: Duration,
+    ) -> Self {
         let queues = (0..=u8::MAX as usize)
             .map(|i| Block::new(i as u8, capacity))
             .collect();
@@ -152,12 +153,17 @@ impl Session {
             session,
             last_timestamp: Instant::now(),
             active: false,
-            session_expiration_delay,
+            session_expiration_timeout,
+            block_expiration_timeout,
         }
     }
 
-    fn elapsed(&self) -> u128 {
-        self.last_timestamp.elapsed().as_millis()
+    fn elapsed(&self) -> Duration {
+        self.last_timestamp.elapsed()
+    }
+
+    fn block_expiration_timeout(&self) -> Duration {
+        self.block_expiration_timeout
     }
 
     /// Add a received packet to this session
@@ -212,8 +218,8 @@ impl Session {
         if !current_block.used() {
             // we don't have next block (maybe we lost it completly. check is last timestamp is
             // very old
-            if self.elapsed() as usize > self.session_expiration_delay {
-                trace!("condition : session expired");
+            if self.elapsed() > self.session_expiration_timeout {
+                debug!("condition : session expired");
                 counter!("reorder_flush_session_expired").increment(1);
                 return FlushCondition::SessionExpired;
             }
@@ -229,7 +235,7 @@ impl Session {
         // check we don't have too many blocks inflight
         let real_current_id = current_block.id();
         if self.latest_block - real_current_id >= MAX_ACTIVE_QUEUES {
-            trace!(
+            debug!(
                 "condition : block {} len {} returned: max active queues",
                 self.current_block,
                 current_block.len()
@@ -239,8 +245,8 @@ impl Session {
         }
 
         // do not return current block id if last insertion time is too close
-        if current_block.elapsed() > MAX_DELAY_MS {
-            trace!(
+        if current_block.elapsed() > self.block_expiration_timeout() {
+            debug!(
                 "condition : block {} len {} returned: max delay",
                 self.current_block,
                 current_block.len()
@@ -293,6 +299,8 @@ impl Session {
 
 pub struct Reorder {
     sessions: Vec<Session>,
+    // how much time should we wait before allowing force decoding (in milliseconds)
+    block_expiration_timeout: Duration,
     current_session: u8,
 }
 
@@ -300,15 +308,24 @@ impl Reorder {
     pub fn new(
         nb_normal_packets: usize,
         nb_repair_packets: usize,
-        session_expiration_delay: usize,
+        block_expiration_timeout: Duration,
+        session_expiration_timeout: Duration,
     ) -> Self {
         let capacity = nb_normal_packets + nb_repair_packets;
         let sessions: Vec<Session> = (0..=u8::MAX as usize)
-            .map(|session_id| Session::new(session_id as u8, capacity, session_expiration_delay))
+            .map(|session_id| {
+                Session::new(
+                    session_id as u8,
+                    capacity,
+                    block_expiration_timeout,
+                    session_expiration_timeout,
+                )
+            })
             .collect();
 
         Self {
             current_session: FIRST_SESSION_ID,
+            block_expiration_timeout,
             sessions,
         }
     }
@@ -323,7 +340,7 @@ impl Reorder {
 
     pub fn push(
         &mut self,
-        header: Header,
+        header: &Header,
         packet: EncodingPacket,
     ) -> Option<(MessageType, u8, u8, Vec<EncodingPacket>)> {
         // first process info from header
@@ -338,7 +355,7 @@ impl Reorder {
         self.reorder_finish()
     }
 
-    fn store_packet(&mut self, header: Header, packet: EncodingPacket) {
+    fn store_packet(&mut self, header: &Header, packet: EncodingPacket) {
         let session_id = header.session();
         let payload_id = packet.payload_id();
         let message_block_id = payload_id.source_block_number();
@@ -436,8 +453,12 @@ impl Reorder {
     }
 
     /// we miss diode-send init packet, so initialize reorder on the current session
-    pub fn init(&mut self, header: Header) {
+    pub fn init(&mut self, header: &Header) {
         self.current_session = header.session();
+    }
+
+    pub fn block_expiration_timeout(&self) -> Duration {
+        self.block_expiration_timeout
     }
 }
 
@@ -452,26 +473,30 @@ mod tests {
 
     use crate::{
         protocol::{Header, MessageType},
-        receive::reorder::{MAX_ACTIVE_QUEUES, MAX_DELAY_MS},
+        receive::reorder::MAX_ACTIVE_QUEUES,
     };
 
     use super::Reorder;
 
+    // create a valid empty packet with properties
     fn build_packet(flags: MessageType, session: u8, block: u8) -> (Header, EncodingPacket) {
         let header = Header::new(flags, session, block);
         let packet = EncodingPacket::new(PayloadId::new(block, 0), vec![]);
         (header, packet)
     }
 
+    const ONE_HUNDRED_MS: Duration = Duration::from_millis(100);
+    const FIVE_HUNDRED_MS: Duration = Duration::from_millis(500);
+
     #[test]
     fn test_single_succeed() {
         // prepare data
         let (header, packet) = build_packet(MessageType::End, 0, 0);
-        let mut reorder = Reorder::new(1, 0, 1);
+        let mut reorder = Reorder::new(1, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
 
         // must succeed
         let (flags, session, block, packet) = reorder
-            .push(header, packet)
+            .push(&header, packet)
             .expect("Cannot push packet in reorder module");
         assert!(flags.contains(MessageType::End));
         assert_eq!(session, 0);
@@ -483,10 +508,10 @@ mod tests {
     fn test_single_block_fail() {
         // prepare data, starting with a block id != 0 => we wait for 0
         let (header, packet) = build_packet(MessageType::End, 0, 1);
-        let mut reorder = Reorder::new(1, 0, 1);
+        let mut reorder = Reorder::new(1, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
 
         // must succeed
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
     }
 
@@ -495,10 +520,10 @@ mod tests {
         // prepare data
         let header = Header::new(MessageType::End, 1, 0);
         let packet = EncodingPacket::new(PayloadId::new(0, 0), vec![]);
-        let mut reorder = Reorder::new(1, 0, 1);
+        let mut reorder = Reorder::new(1, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
     }
 
@@ -507,26 +532,26 @@ mod tests {
         // prepare data
         let header = Header::new(MessageType::End, 1, 1);
         let packet = EncodingPacket::new(PayloadId::new(1, 0), vec![]);
-        let mut reorder = Reorder::new(1, 0, 1);
+        let mut reorder = Reorder::new(1, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
     }
 
     #[test]
     fn test_two_packets_succeed() {
-        let mut reorder = Reorder::new(2, 0, 1);
+        let mut reorder = Reorder::new(2, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
         // prepare data
         let (header, packet) = build_packet(MessageType::End, 0, 0);
 
         // must fail
-        let ret = reorder.push(header, packet.clone());
+        let ret = reorder.push(&header, packet.clone());
         assert!(ret.is_none());
 
         // must succeed
         let (flags, session, block, packet) = reorder
-            .push(header, packet)
+            .push(&header, packet)
             .expect("Cannot push packet in reorder module");
 
         // checks
@@ -538,17 +563,17 @@ mod tests {
 
     #[test]
     fn test_two_packets_two_blocks_succeed() {
-        let mut reorder = Reorder::new(2, 0, 1);
+        let mut reorder = Reorder::new(2, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
         // prepare data
         let (header, packet) = build_packet(MessageType::Data, 0, 0);
 
         // must fail
-        let ret = reorder.push(header, packet.clone());
+        let ret = reorder.push(&header, packet.clone());
         assert!(ret.is_none());
 
         // must succeed
         let (flags, session, block, packet) = reorder
-            .push(header, packet)
+            .push(&header, packet)
             .expect("Cannot push packet in reorder module");
 
         // checks
@@ -561,12 +586,12 @@ mod tests {
         let (header, packet) = build_packet(MessageType::End, 0, 1);
 
         // must fail
-        let ret = reorder.push(header, packet.clone());
+        let ret = reorder.push(&header, packet.clone());
         assert!(ret.is_none());
 
         // must succeed
         let (flags, session, block, packet) = reorder
-            .push(header, packet)
+            .push(&header, packet)
             .expect("Cannot push packet in reorder module");
 
         // checks
@@ -578,19 +603,19 @@ mod tests {
 
     #[test]
     fn test_one_packet_simple_block_reorder_succeed() {
-        let mut reorder = Reorder::new(1, 0, 1);
+        let mut reorder = Reorder::new(1, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
         // prepare data
         let (header, packet) = build_packet(MessageType::End, 0, 1);
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         let (header, packet) = build_packet(MessageType::Data, 0, 0);
 
         // must succeed
         let (flags, session, block, packet) =
-            reorder.push(header, packet).expect("reorder module error");
+            reorder.push(&header, packet).expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::Data));
@@ -612,19 +637,19 @@ mod tests {
 
     #[test]
     fn test_one_packet_simple_session_reorder_succeed() {
-        let mut reorder = Reorder::new(1, 0, 1);
+        let mut reorder = Reorder::new(1, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
         // prepare data
         let (header, packet) = build_packet(MessageType::End, 1, 0);
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         let (header, packet) = build_packet(MessageType::End, 0, 0);
 
         // must succeed
         let (flags, session, block, packet) =
-            reorder.push(header, packet).expect("reorder module error");
+            reorder.push(&header, packet).expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -646,29 +671,29 @@ mod tests {
 
     #[test]
     fn test_two_packets_simple_session_reorder_succeed() {
-        let mut reorder = Reorder::new(2, 0, 1);
+        let mut reorder = Reorder::new(2, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
         // prepare data
         let (header, packet) = build_packet(MessageType::End, 1, 0);
 
         // must fail
-        let ret = reorder.push(header, packet.clone());
+        let ret = reorder.push(&header, packet.clone());
         assert!(ret.is_none());
 
         // prepare data
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         let (header, packet) = build_packet(MessageType::End, 0, 0);
 
         // must fail
-        let ret = reorder.push(header, packet.clone());
+        let ret = reorder.push(&header, packet.clone());
         assert!(ret.is_none());
 
         // must succeed
         let (flags, session, block, packet) =
-            reorder.push(header, packet).expect("reorder module error");
+            reorder.push(&header, packet).expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::End));
@@ -688,48 +713,48 @@ mod tests {
 
     #[test]
     fn test_two_packets_two_blocks_simple_session_reorder_succeed() {
-        let mut reorder = Reorder::new(2, 0, 1);
+        let mut reorder = Reorder::new(2, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
         // prepare data
         let (header, packet) = build_packet(MessageType::Data, 1, 0);
 
         // must fail
-        let ret = reorder.push(header, packet.clone());
+        let ret = reorder.push(&header, packet.clone());
         assert!(ret.is_none());
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         // prepare data
         let (header, packet) = build_packet(MessageType::End, 1, 1);
 
         // must fail
-        let ret = reorder.push(header, packet.clone());
+        let ret = reorder.push(&header, packet.clone());
         assert!(ret.is_none());
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         let (header, packet) = build_packet(MessageType::End, 0, 1);
 
         // must fail
-        let ret = reorder.push(header, packet.clone());
+        let ret = reorder.push(&header, packet.clone());
         assert!(ret.is_none());
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         let (header, packet) = build_packet(MessageType::Data, 0, 0);
 
         // must fail
-        let ret = reorder.push(header, packet.clone());
+        let ret = reorder.push(&header, packet.clone());
         assert!(ret.is_none());
 
         // must succeed
         let (flags, session, block, packet) =
-            reorder.push(header, packet).expect("reorder module error");
+            reorder.push(&header, packet).expect("reorder module error");
 
         // checks
         assert!(flags.contains(MessageType::Data));
@@ -767,16 +792,16 @@ mod tests {
 
     #[test]
     fn test_lost_packet_timeout() {
-        let mut reorder = Reorder::new(1, 1, 1);
+        let mut reorder = Reorder::new(1, 1, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
         // prepare data
         let (header, packet) = build_packet(MessageType::End, 0, 0);
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         // wait for more than timeout
-        std::thread::sleep(Duration::from_millis(MAX_DELAY_MS as u64 + 50));
+        std::thread::sleep(reorder.block_expiration_timeout() + Duration::from_millis(50));
 
         // must succeed
         let (flags, session, block, packet) = reorder.pop_first().expect("reorder module error");
@@ -790,10 +815,10 @@ mod tests {
 
     #[test]
     fn test_unused_block_timeout_nothing() {
-        let mut reorder = Reorder::new(1, 1, 1);
+        let mut reorder = Reorder::new(1, 1, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
 
         // wait for more than timeout
-        std::thread::sleep(Duration::from_millis(MAX_DELAY_MS as u64 + 50));
+        std::thread::sleep(reorder.block_expiration_timeout() + Duration::from_millis(50));
 
         // if no packet : there must be nothing returned
         let ret = reorder.pop_first();
@@ -802,14 +827,14 @@ mod tests {
 
     #[test]
     fn test_lost_packet_too_many_queues() {
-        let mut reorder = Reorder::new(1, 1, 1);
+        let mut reorder = Reorder::new(1, 1, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
 
         (0..MAX_ACTIVE_QUEUES).for_each(|i| {
             // prepare data
             let (header, packet) = build_packet(MessageType::Data, 0, i as u8);
 
             // must fail
-            let ret = reorder.push(header, packet);
+            let ret = reorder.push(&header, packet);
             assert!(ret.is_none());
         });
 
@@ -817,7 +842,7 @@ mod tests {
 
         // must fail
         let (flags, session, block, packets) =
-            reorder.push(header, packet).expect("reorder module error");
+            reorder.push(&header, packet).expect("reorder module error");
         // checks
         assert!(flags.contains(MessageType::Data));
         assert_eq!(session, 0);
@@ -827,7 +852,7 @@ mod tests {
 
     #[test]
     fn test_no_lost_packet_loop_not_too_many_queues() {
-        let mut reorder = Reorder::new(1, 1, 1);
+        let mut reorder = Reorder::new(1, 1, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
 
         // we do a full loop of 256 blocks
         (0..256).for_each(|i| {
@@ -835,11 +860,11 @@ mod tests {
             let (header, packet) = build_packet(MessageType::Data, 0, i as u8);
 
             // must fail
-            let ret = reorder.push(header, packet.clone());
+            let ret = reorder.push(&header, packet.clone());
             assert!(ret.is_none());
 
             // XXX strange
-            let ret = reorder.push(header, packet);
+            let ret = reorder.push(&header, packet);
             assert!(ret.is_some());
         });
 
@@ -848,7 +873,7 @@ mod tests {
         let (header, packet) = build_packet(MessageType::Data, 0, 0);
 
         // must fail
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         // must fail : no reason to force reblocking XXX ? but too many blocks => must return ?!
@@ -861,7 +886,7 @@ mod tests {
         // check what appends when we loose many blocks
         // we push many packets without end then we start a new session that finish properly
 
-        let mut reorder = Reorder::new(1, 0, 1);
+        let mut reorder = Reorder::new(1, 0, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
 
         // we store many unfinished blocks
         (0..50).for_each(|i| {
@@ -869,30 +894,30 @@ mod tests {
             let (header, packet) = build_packet(MessageType::Data, 0, i as u8);
 
             // must succeed
-            let ret = reorder.push(header, packet);
+            let ret = reorder.push(&header, packet);
             assert!(ret.is_some());
         });
 
         // we loose most of session 1 too (9 first blocks missing)
         let (header, packet) = build_packet(MessageType::End, 1, 10);
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         // now we add a small 3 blocks session in session 2
         let (header, packet) = build_packet(MessageType::Data | MessageType::Start, 2, 0);
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         let (header, packet) = build_packet(MessageType::Data, 2, 1);
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         let (header, packet) = build_packet(MessageType::End, 5, 3);
-        let ret = reorder.push(header, packet);
+        let ret = reorder.push(&header, packet);
         assert!(ret.is_none());
 
         // wait for more than timeout
-        std::thread::sleep(Duration::from_millis(MAX_DELAY_MS as u64 + 50));
+        std::thread::sleep(FIVE_HUNDRED_MS + Duration::from_millis(50));
 
         // return probably session 0 first
         let ret = reorder.pop_first();
@@ -901,7 +926,7 @@ mod tests {
 
     #[test]
     fn test_session_loop() {
-        let mut reorder = Reorder::new(1, 1, 1);
+        let mut reorder = Reorder::new(1, 1, ONE_HUNDRED_MS, FIVE_HUNDRED_MS);
 
         // initialize with 256 completed sessions
         (0..256).for_each(|session| {
@@ -910,14 +935,14 @@ mod tests {
                 build_packet(MessageType::Start | MessageType::Data, session as u8, 0);
 
             // no finished
-            let ret = reorder.push(header, packet);
+            let ret = reorder.push(&header, packet);
             assert!(ret.is_none());
 
             let (header, packet) =
                 build_packet(MessageType::Data | MessageType::End, session as u8, 0);
 
             // must succeed
-            let ret = reorder.push(header, packet);
+            let ret = reorder.push(&header, packet);
             assert!(ret.is_some());
         });
 
@@ -930,14 +955,14 @@ mod tests {
                     build_packet(MessageType::Start | MessageType::Data, session as u8, 0);
 
                 // no finished
-                let ret = reorder.push(header, packet);
+                let ret = reorder.push(&header, packet);
                 assert!(ret.is_none());
 
                 let (header, packet) =
                     build_packet(MessageType::Data | MessageType::End, session as u8, 0);
 
                 // must succeed
-                let ret = reorder.push(header, packet);
+                let ret = reorder.push(&header, packet);
                 assert!(ret.is_some());
             });
         });

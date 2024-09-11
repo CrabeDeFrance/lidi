@@ -1,164 +1,124 @@
-//! Functions and wrappers over libc's UDP socket multiple messages receive and send
+//! Worker that actually receives packets from the UDP diode link
 
-use std::marker::PhantomData;
-use std::os::fd::AsRawFd;
-use std::{io, mem, net};
+use nix::sys::socket::sockopt::{RcvBuf, SndBuf};
+use nix::sys::socket::{getsockopt, setsockopt};
+use std::io::Error;
+use std::net::{SocketAddr, UdpSocket};
 
-pub struct UdpRecv;
-pub struct UdpSend;
+use crate::protocol::Header;
 
-/// Wrapper structure over the socket and buffers used to send and receive multiple messages.
-/// Inner data are used to call libc recvmmsg and sendmmsg.
-///
-/// The `D` type parameter is intended to be [UdpRecv] or [UdpSend] to ensure structures are
-/// correctly initialized according to the data transfer direction.
-pub struct UdpMessages<D> {
-    socket: net::UdpSocket,
-    vlen: usize,
-    _sockaddr: Option<Box<libc::sockaddr>>,
-    msgvec: Vec<libc::mmsghdr>,
-    iovecs: Vec<libc::iovec>,
-    buffers: Vec<Vec<u8>>,
-    marker: PhantomData<D>,
+pub struct Udp {
+    socket: UdpSocket,
+    mtu: u16,
+    buffer: Vec<u8>,
 }
 
-impl<D> UdpMessages<D> {
-    fn new(
-        socket: net::UdpSocket,
-        vlen: usize,
-        msglen: Option<usize>,
-        addr: Option<net::SocketAddr>,
-    ) -> Self {
-        let (mut msgvec, mut iovecs, mut buffers);
-
-        unsafe {
-            msgvec = vec![mem::zeroed::<libc::mmsghdr>(); vlen];
-            iovecs = vec![mem::zeroed::<libc::iovec>(); vlen];
-            if let Some(msglen) = msglen {
-                buffers = vec![vec![mem::zeroed::<u8>(); msglen]; vlen];
-            } else {
-                buffers = Vec::new();
-            }
-        }
-
-        let mut sockaddr: Option<Box<libc::sockaddr>> = addr.map(|addr| match addr {
-            net::SocketAddr::V4(addr4) => {
-                let sockaddr_in = Box::new(libc::sockaddr_in {
-                    sin_family: libc::AF_INET as libc::sa_family_t,
-                    sin_addr: libc::in_addr {
-                        s_addr: u32::from_le_bytes(addr4.ip().octets()),
-                    },
-                    sin_port: addr4.port().to_be(),
-                    ..unsafe { mem::zeroed() }
-                });
-                unsafe { mem::transmute(sockaddr_in) }
-            }
-            net::SocketAddr::V6(addr6) => {
-                let sockaddr_in6 = Box::new(libc::sockaddr_in6 {
-                    sin6_family: libc::AF_INET6 as libc::sa_family_t,
-                    sin6_port: addr6.port().to_be(),
-                    sin6_flowinfo: addr6.flowinfo(),
-                    sin6_addr: libc::in6_addr {
-                        s6_addr: addr6.ip().octets(),
-                    },
-                    sin6_scope_id: addr6.scope_id(),
-                });
-                unsafe { mem::transmute(sockaddr_in6) }
-            }
-        });
-
-        for i in 0..vlen {
-            if let Some(msglen) = msglen {
-                iovecs[i].iov_base = buffers[i].as_mut_ptr().cast::<libc::c_void>();
-                iovecs[i].iov_len = msglen;
-            }
-            if let Some(sockaddr) = &mut sockaddr {
-                msgvec[i].msg_hdr.msg_name =
-                    (sockaddr.as_mut() as *mut libc::sockaddr).cast::<libc::c_void>();
-                msgvec[i].msg_hdr.msg_namelen = mem::size_of::<libc::sockaddr_in>() as u32;
-            }
-            msgvec[i].msg_hdr.msg_iov = &mut iovecs[i];
-            msgvec[i].msg_hdr.msg_iovlen = 1;
-        }
-
-        Self {
-            socket,
-            vlen,
-            _sockaddr: sockaddr,
-            msgvec,
-            iovecs,
-            buffers,
-            marker: PhantomData,
-        }
-    }
-}
-
-impl UdpMessages<UdpRecv> {
-    pub fn new_receiver(socket: net::UdpSocket, vlen: usize, msglen: usize) -> Self {
-        log::info!("UDP configured to receive {vlen} messages (datagrams)");
-        Self::new(socket, vlen, Some(msglen), None)
-    }
-
-    pub fn recv_mmsg(&mut self) -> Result<impl Iterator<Item = &[u8]>, io::Error> {
-        let nb_msg = unsafe {
-            libc::recvmmsg(
-                self.socket.as_raw_fd(),
-                self.msgvec.as_mut_ptr(),
-                self.vlen as u32,
-                libc::MSG_WAITFORONE,
-                std::ptr::null_mut(),
-            )
-        };
-
-        if nb_msg == -1 {
-            Err(io::Error::new(io::ErrorKind::Other, "libc::recvmmsg"))
+impl Udp {
+    pub fn new(
+        bind_udp: SocketAddr,
+        to_udp: Option<SocketAddr>,
+        udp_mtu: u16,
+        min_buf_size: u64,
+        role: &str,
+    ) -> std::io::Result<Self> {
+        if let Some(to_udp) = to_udp {
+            log::info!(
+                "sending UDP {role} packets to {} with MTU {}",
+                to_udp,
+                udp_mtu
+            );
         } else {
-            Ok(self
-                .buffers
-                .iter()
-                .take(nb_msg as usize)
-                .zip(self.msgvec.iter())
-                .map(|(buffer, msghdr)| &buffer[..msghdr.msg_len as usize]))
+            log::info!(
+                "listening for UDP packets at {} with MTU {}",
+                bind_udp,
+                udp_mtu
+            )
         }
-    }
-}
 
-impl UdpMessages<UdpSend> {
-    pub fn new_sender(
-        socket: net::UdpSocket,
-        vlen: usize,
-        dest: net::SocketAddr,
-    ) -> UdpMessages<UdpSend> {
-        log::info!("UDP configured to send {vlen} messages (datagrams) at a time");
-        Self::new(socket, vlen, None, Some(dest))
-    }
+        let socket = UdpSocket::bind(bind_udp)
+            .map_err(|e| Error::new(e.kind(), format!("Cannot bind udp socket {bind_udp}: {e}")))?;
 
-    pub fn send_mmsg(&mut self, mut buffers: Vec<Vec<u8>>) -> Result<(), io::Error> {
-        for bufchunk in buffers.chunks_mut(self.vlen) {
-            let to_send = bufchunk.len();
+        // set recv buf size to maximum allowed by system conf
+        setsockopt(&socket, RcvBuf, &usize::MAX).map_err(|e| {
+            Error::new(
+                std::io::ErrorKind::Other,
+                format!("Cannot set recv buffer size on {bind_udp}: {e}"),
+            )
+        })?;
 
-            for (i, buf) in bufchunk.iter_mut().enumerate() {
-                self.msgvec[i].msg_len = buf.len() as u32;
-                self.iovecs[i].iov_base = buf.as_mut_ptr().cast::<libc::c_void>();
-                self.iovecs[i].iov_len = buf.len();
-            }
+        // check if it is big enough or print warning
+        let sock_buffer_size = getsockopt(&socket, RcvBuf).map_err(|e| {
+            Error::new(
+                std::io::ErrorKind::Other,
+                format!("Cannot get recv buffer size on {bind_udp}: {e}"),
+            )
+        })?;
 
-            let nb_msg;
-            unsafe {
-                nb_msg = libc::sendmmsg(
-                    self.socket.as_raw_fd(),
-                    self.msgvec.as_mut_ptr(),
-                    to_send as u32,
-                    0,
-                );
-            }
-            if nb_msg == -1 {
-                return Err(io::Error::new(io::ErrorKind::Other, "libc::sendmmsg"));
-            }
-            if nb_msg as usize != to_send {
-                log::warn!("nb prepared messages doesn't match with nb sent messages");
-            }
+        log::debug!("UDP socket receive buffer size set to {sock_buffer_size}");
+        if (sock_buffer_size as u64) < 5 * min_buf_size {
+            log::warn!("UDP socket recv buffer is be too small to achieve optimal performances");
+            log::warn!("Please modify the kernel parameters using sysctl -w net.core.rmem_max");
         }
+
+        if let Some(to_udp) = to_udp {
+            socket.connect(to_udp).map_err(|e| {
+                Error::new(
+                    e.kind(),
+                    format!("Cannot connect UDP socket {bind_udp} to {to_udp}: {e}"),
+                )
+            })?;
+
+            // set send buf size to maximum allowed by system conf
+            setsockopt(&socket, SndBuf, &usize::MAX).map_err(|e| {
+                Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Cannot set send buffer size on {bind_udp}: {e}"),
+                )
+            })?;
+
+            // check if it is big enough or print warning
+            let sock_buffer_size = getsockopt(&socket, SndBuf).map_err(|e| {
+                Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Cannot get send buffer size on {bind_udp}: {e}"),
+                )
+            })?;
+
+            log::debug!("UDP socket send buffer size set to {sock_buffer_size}");
+        }
+
+        Ok(Self {
+            socket,
+            mtu: udp_mtu,
+            buffer: vec![0; udp_mtu as usize],
+        })
+    }
+
+    pub fn recv(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.socket.recv(buffer)
+    }
+
+    pub fn send(&mut self, header: Header, payload: Vec<u8>) -> std::io::Result<()> {
+        log::trace!(
+            "udp: send session {} block {} seq {} flags {} len {}",
+            header.session(),
+            header.block(),
+            header.seq(),
+            header.message_type(),
+            payload.len()
+        );
+
+        let payload_len = payload.len();
+
+        self.buffer[0..4].copy_from_slice(&header.serialized());
+        self.buffer[4..payload_len + 4].copy_from_slice(&payload);
+
+        self.socket.send(&self.buffer[0..payload_len + 4])?;
+
         Ok(())
+    }
+
+    pub fn mtu(&self) -> u16 {
+        self.mtu
     }
 }

@@ -1,123 +1,94 @@
 .. _Command line parameters:
 
-Basic command line parameters
-=============================
+Command line parameters
+-----------------------
 
-When running `diode-send` and `diode-receive` with cargo, command line parameters must appear after after double-hyphen separator. For example, to display all available options for the sender part:
+Running an application
+======================
 
-.. code-block::
+This is a simple `cargo` hands-on.
 
-   $ cargo run --release --bin diode-send -- --help
-
-Overview
---------
-
-Here is a diagram of the components involved in an example usage of lidi, annotated with command line parameters:
-
-TO BE UPDATED (command line parameters & ports to be updated)
-
-.. image:: schema.svg
-
-.. note::
-   Parameters that are displayed in the gray box must be the same of both sides (sender and receiver) of lidi.
-
-Session
-"""""""
-
-A session is a TCP connection opened on sender side, by an application, in order to send data. A session (the TCP connection) can be used to send any type of data, for instance one or multiple files. The application (not lidi) is responsible of managing a specific protocol to send data and metadata (for instance the content of a file and the filename).
-Lidi only manages session's start or end. On the receiver side, lidi diode-receive will open and close TCP sessions to a receiver application (like diode-receive-file), in respect of happened on sender side.
-Due to technical constraints, the sender must close the session when data transfer is done. The sender side cannot keep TCP connections opened without sending any data, for instance to reuse it later. Application must open a TCP connection, send data, then close it. 
-Lidi receiver will automatically close unused session after some time (see the :ref:`Timeouts` chapter for more details on how to configure session's timeout).
-
-Following, we provide some details about each command line options.
-
-Adresses and ports
-------------------
-
-As shown in the :ref:`Getting started` chapter, default values work well for testing the diode on a single machine. But for real application, ip addresses and ports must be configured properly. There are three points in the diode chain where those settings should be provided.
-
-TCP data source
-"""""""""""""""
-
-The diode-send side gets data from TCP connections (for instance, to receive data from diode-send-file). It is necessary to specify IP address and port in which TCP connections will be accepted with the following parameter:
+To run an application, the following command is used:
 
 .. code-block::
 
-   --bind-tcp <ip:port>
+   $ cargo run --release --bin <application>
 
-Default value is 127.0.0.1:5001.
-
-TCP data destination
-""""""""""""""""""""
-
-On the diode-receive side, data will be sent to TCP connected client (for instance, to connect to diode-receive-file). To specify listening IP and TCP port:
+It is possible to build them first, then call an application outside cargo as usual:
 
 .. code-block::
 
-   --to-tcp <ip:port>
+   $ cargo build --release
+   $ ./target/release/<application>
 
-Default value is 127.0.0.1:5002.
-
-UDP transfer
-""""""""""""
-
-UDP transfer is used to transfer data from diode-send and diode-receive. Settings IP address and UDP port is necessary. On the sender side:
+When running an application with cargo, command line parameters must appear after after double-hyphen separator:
 
 .. code-block::
 
-   --to-udp <ip:port>
+   $ cargo run --release --bin <application> -- [OPTIONS]
 
-There is no default value for this, it has to be set to IP of the server running diode-receive.
+Available applications
+======================
 
-.. code-block::
+There are multiple applications provided in Lidi. Each file located in `src/bin/` is a different application.
 
-   --bind-udp <ip:port>
+The both main applications are :
 
-Default value is 0.0.0.0:0.
+* diode-send
+* diode-receive
 
-On the receiver side, the option:
+The helper application, which can be used to build a simple diode channel are :
 
-.. code-block::
+* diode-receive-file
+* diode-send-dir
+* diode-send-file
 
-   --bind-udp <ip:port>
+A metrics application is here to help finding root cause of drops:
 
-There is no default value for this, it has to be set to the same value than --to-udp (diode-send).
+* socket_stats
 
-.. _Timeouts:
+Other applications are available, for testing or benchmarks:
 
-Timeouts
---------
+* network-behavior
+* bench-tcp
+* bench_encode_send_parallel
+* diode-flood-test
 
-Since lidi uses UDP protocol to transfer data, blocks and datagrams have to be reordered at application level.
-Link is unidirectionnal, so there is no way to ask for status or retransmission. Lidi receiver's side has to make choices depending on what it receives. 
-Of course, there are start and end of streams markers, but when packets are missing and arrives in any order, it is difficult to be sure of what happens.
+Command line parameters
+=======================
 
-Thus, there are two configurable timers in lidi diode-receive. 
-One is used to decide when to force reassembly of the current block.
-If we miss parts of the current block and no more packet is received during 'flush-timeout' delay, we force decoding the current block with data received (this may fail if too many parts are missing).
+Both `diode-send` and `diode-receive` applications use the same command line parameters.
 
-.. code-block::
-
-   --flush-timeout <nb_milliseconds>
-     (receiver side, default: 500)
-
-The second is used to decide when to force closing a current session transfer.
+To get the list of available parameters, it is possible to use -h option. For example, to display all available options for the receiver part:
 
 .. code-block::
 
-   --session-expiration-delay <seconds>
-     (receiver side, default: 5)
+   Usage: diode-receive [OPTIONS]
 
+   Options:
+     -c, --config <CONFIG>          Path to configuration file [default: /etc/lidi/config.toml]
+     -l, --log-level <LOG_LEVEL>    Verbosity level: info, debug, warning, error ... [default: info]
+     -h, --help                     Print help
+     -V, --version                  Print version
 
-Heartbeat (NOT IMPLEMENTED)
----------------------------
-
-Since the purpose of the diode is to only allow one-way data traffic, the sender cannot be aware if a receiver is set up or not. But heartbeat messages are regularly sent through the diode so that the receiver can be aware of a sender disconnection. Heartbeat times can be set with the following option on both sides:
+For instance, to start `diode-send` with a different path for the configuration file, one can use:
 
 .. code-block::
 
-   --heartbeat <nb_milliseconds>
+   $ cargo run --release --bin diode-send -- --config ./lidi.toml
 
-The default value is 100 milliseconds for the sender (i.e. a heartbeat message is sent every 5 seconds) and 200 milliseconds for the receiver (i.e. warnings are displayed whenever during 10 seconds no heartbeat message was received). Due to latency, timeouts and network load, the receiver value must always be greater than the sender value.
+or 
 
-Further heartbeat implementation could be used to allow application to keep his TCP connection active, even it is not used to send data.
+.. code-block::
+
+   $ cargo run --release --bin diode-send -- -c ./lidi.toml
+
+Parameter description
+"""""""""""""""""""""
+
+Command line options are used to override default parameters, to set a different configuration or log file.
+
+* ``--config``: use an alternate configuration file than the default `/etc/lidi/config.toml`. See :ref:`configuration_file`.
+
+* ``--log-level``: when not using a log4rs configuration file, set the filtering level for logs on console. By default, the level `info` is used. See :ref:`Logging`.
+

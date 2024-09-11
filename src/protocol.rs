@@ -5,8 +5,7 @@
 //! - `MessageType::Heartbeat` message without data to tell receiver the other side is alive
 //! - `MessageType::Start` informs the receiver that the sent data chunk represents the beginning of a new transfer,
 //! - `MessageType::Data` is used to inform this packet contains data
-//! - `MessageType::End` informs the receiver that the current transfer is completed (i.e. this is
-//! the last message for the current connection)
+//! - `MessageType::End` informs the receiver that the current transfer is completed (i.e. this is the last message for the current connection)
 //!
 //! A message is stored in a `Vec` of `u8`s, with the following representation:
 //!
@@ -29,9 +28,10 @@
 //! is of type `Heartbeat`, `Abort` or `End`. Then the `data_length` will be set to 0 by the
 //! message constructor and the data chunk will be fully padded with zeros.
 
-use crate::error::Error;
+//use crate::error::Error;
 use bitflags::bitflags;
-use std::fmt;
+use std::io::{Error, ErrorKind};
+use std::{fmt, time::Duration};
 
 pub struct DecodedBlock {
     pub header: Header,
@@ -104,14 +104,14 @@ pub const FIRST_BLOCK_ID: u8 = 0;
 pub const FIRST_SESSION_ID: u8 = 0;
 
 impl Header {
-    /// Message constructor, craft a message according to the representation introduced in
-    /// [crate::protocol].
-    ///
-    /// Some (unchecked) constraints on arguments must be respected:
-    /// - if `message` is `MessageType::Heartbeat`, `MessageType::Abort` or `MessageType::End`
-    /// then no data should be provided,
-    /// - if `message` is `MessageType::Heartbear` then `client_id` should be equal to 0,
-    /// - if there is some `data`, its length must be greater than `message_length`.
+    // Message constructor, craft a message according to the representation introduced in
+    // [crate::protocol].
+    //
+    // Some (unchecked) constraints on arguments must be respected:
+    // - if `message` is `MessageType::Heartbeat`, `MessageType::Abort` or `MessageType::End`
+    // then no data should be provided,
+    // - if `message` is `MessageType::Heartbear` then `client_id` should be equal to 0,
+    // - if there is some `data`, its length must be greater than `message_length`.
     pub fn new(flags: MessageType, session: u8, block: u8) -> Self {
         Self {
             flags,
@@ -125,10 +125,13 @@ impl Header {
         self.flags
     }
 
-    pub(crate) const fn deserialize(data: &[u8]) -> Result<Header, Error> {
+    pub(crate) fn deserialize(data: &[u8]) -> std::io::Result<Header> {
         // very unlikely
         if data.len() < SERIALIZE_OVERHEAD as usize {
-            return Err(Error::UdpHeaderDeserialize);
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "UDP packet header deserialize",
+            ));
         }
 
         // check flags
@@ -143,7 +146,10 @@ impl Header {
                 seq,
             })
         } else {
-            Err(Error::UdpHeaderDeserialize)
+            Err(Error::new(
+                ErrorKind::InvalidData,
+                "UDP packet header deserialize",
+            ))
         }
     }
 
@@ -227,4 +233,90 @@ pub fn nb_repair_packets(
     repair_block_size: u32,
 ) -> u32 {
     repair_block_size / u32::from(data_mtu(oti))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LidiParameters {
+    encoding_block_size: u64,
+    repair_block_size: u32,
+    heartbeat: Duration,
+    udp_mtu: u16,
+    nb_threads: u8,
+}
+
+impl LidiParameters {
+    pub fn new(
+        encoding_block_size: u64,
+        repair_block_size: u32,
+        heartbeat: Duration,
+        udp_mtu: u16,
+        nb_threads: u8,
+    ) -> Self {
+        Self {
+            encoding_block_size,
+            repair_block_size,
+            heartbeat,
+            udp_mtu,
+            nb_threads,
+        }
+    }
+
+    pub fn heartbeat_interval(&self) -> Duration {
+        self.heartbeat
+    }
+
+    pub fn serialize(&self) -> [u8; 19] {
+        let mut payload = [0; 19];
+
+        let data = u64::to_be_bytes(self.encoding_block_size);
+        payload[0..8].copy_from_slice(&data);
+
+        let data = u32::to_be_bytes(self.repair_block_size);
+        payload[8..12].copy_from_slice(&data);
+
+        let data = u32::to_be_bytes(self.heartbeat.as_millis() as u32);
+        payload[12..16].copy_from_slice(&data);
+
+        let data = u16::to_be_bytes(self.udp_mtu);
+        payload[16..18].copy_from_slice(&data);
+
+        payload[18] = self.nb_threads;
+
+        payload
+    }
+
+    pub fn deserialize(data: &[u8]) -> Result<Self, Error> {
+        if data.len() < 19 {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "UDP init packet payload deserialize",
+            ));
+        }
+
+        let mut int: [u8; 8] = [0; 8];
+
+        int.copy_from_slice(&data[0..8]);
+        let encoding_block_size = u64::from_be_bytes(int);
+
+        let mut int: [u8; 4] = [0; 4];
+        int.copy_from_slice(&data[8..12]);
+        let repair_block_size = u32::from_be_bytes(int);
+
+        int.copy_from_slice(&data[12..16]);
+        let heartbeat = u32::from_be_bytes(int);
+
+        let mut int: [u8; 2] = [0; 2];
+        int.copy_from_slice(&data[16..18]);
+        let udp_mtu = u16::from_be_bytes(int);
+
+        let nb_threads = data[18];
+
+        Ok(LidiParameters::new(
+            encoding_block_size,
+            repair_block_size,
+            Duration::from_millis(heartbeat as u64),
+            udp_mtu,
+            nb_threads,
+        ))
+    }
 }

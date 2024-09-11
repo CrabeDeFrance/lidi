@@ -11,6 +11,69 @@ from throttle_fs import ThrottledFSProcess
 
 use_step_matcher("cfparse")
 
+def build_lidi_config(context, udp_port, log_config):
+    mtu = 1500
+    if not context.repair_block:
+        if context.mtu:
+            mtu = context.mtu
+            repair_block = 2 * context.mtu
+        else:
+            repair_block = 3000
+    else:
+        repair_block = context.repair_block
+
+    if context.block_size:
+        block_size = context.block_size
+    else:
+        block_size = 30000
+
+    if context.read_rate:
+        max_bandwidth = "max_bandwidth = {}".format(context.read_rate)
+    else:
+        max_bandwidth = ""
+  
+    return f"""
+encoding_block_size = {block_size}
+repair_block_size = {repair_block}
+
+# IP address and port used to send UDP packets between diode-send and diode-receive
+udp_addr = "127.0.0.1"
+
+udp_port = [ {udp_port} ]
+
+# MTU of the to use one the UDP link
+udp_mtu = {mtu}
+
+# heartbeat period in ms
+heartbeat = 500
+
+# Path to log configuration file
+# {log_config}
+
+# specific options for diode-send
+[sender]
+# TCP server socket to accept data
+bind_tcp = "127.0.0.1:5000"
+
+# ratelimit TCP session speed (in bit/s)
+{max_bandwidth}
+
+# specific options for diode-receive
+[receiver]
+to_tcp = "127.0.0.1:7000"
+# block_expiration_timeout = 500
+session_expiration_timeout = 1000
+"""
+
+def write_lidi_config(context, filename, udp_port, log_config):
+    filename = os.path.join("/dev/shm", filename)
+    log_config_str = "log_config = \"{log_config}\""
+    with open(filename, "w") as f:
+        f.write(build_lidi_config(context, udp_port, log_config_str))
+        f.close()
+    return filename
+
+
 def nice(process_name):
     for proc in psutil.process_iter():
         if process_name in proc.name():
@@ -20,7 +83,7 @@ def nice(process_name):
                 ps.nice(-20)
             return 
 
-def start_diode_receive(context, network_behavior):
+def start_diode_receive(context):
     if context.quiet:
         stdout = subprocess.DEVNULL
         stderr = subprocess.DEVNULL
@@ -28,27 +91,14 @@ def start_diode_receive(context, network_behavior):
         stdout = subprocess.PIPE
         stderr = subprocess.STDOUT
 
-    diode_receive_command = [f'{context.bin_dir}/diode-receive', '--to-tcp', '127.0.0.1:7000', '--session-expiration-delay', '1']
-    if network_behavior:
-        diode_receive_command.append('--bind-udp')
-        diode_receive_command.append('0.0.0.0:6000')
+    if context.network_down_after or context.network_up_after or context.network_drop:
+        receiver_bind_udp_port = "6000"
     else:
-        diode_receive_command.append('--bind-udp')
-        diode_receive_command.append('0.0.0.0:5000')
+        receiver_bind_udp_port = "5000"
 
-    if context.mtu:
-        diode_receive_command.append('--udp-mtu')
-        diode_receive_command.append(str(context.mtu))
-        diode_receive_command.append('--repair-block-size')
-        diode_receive_command.append(str(2*context.mtu))
+    lidi_config = write_lidi_config(context, "lidi_receiv.toml", receiver_bind_udp_port, context.log_config_diode_receive)
 
-    if context.block_size:
-        diode_receive_command.append('--encoding-block-size')
-        diode_receive_command.append(str(context.block_size))
-
-    if context.log_config_diode_receive:
-        diode_receive_command.append('--log-config')
-        diode_receive_command.append(context.log_config_diode_receive)
+    diode_receive_command = [f'{context.bin_dir}/diode-receive', '-c', lidi_config]
 
     context.proc_diode_receive = subprocess.Popen(diode_receive_command, stdout=stdout, stderr=stderr)
     # here we need to wait enough time for diode-receive to be ready
@@ -72,24 +122,9 @@ def start_diode_send(context):
         stdout = subprocess.PIPE
         stderr = subprocess.STDOUT
 
-    diode_send_command = [f'{context.bin_dir}/diode-send', '--bind-tcp', '127.0.0.1:5000', '--to-udp', '127.0.0.1:5000', '--nb-threads', str(context.send_nb_threads)]
-    if context.mtu:
-        diode_send_command.append('--udp-mtu')
-        diode_send_command.append(str(context.mtu))
-        diode_send_command.append('--repair-block-size')
-        diode_send_command.append(str(2*context.mtu))
+    lidi_config = write_lidi_config(context, "lidi_send.toml", "5000", context.log_config_diode_send)
 
-    if context.block_size:
-        diode_send_command.append('--encoding-block-size')
-        diode_send_command.append(str(context.block_size))
-
-    if context.read_rate:
-        diode_send_command.append('--max-bandwidth')
-        diode_send_command.append(str(context.read_rate))
-
-    if context.log_config_diode_send:
-        diode_send_command.append('--log-config')
-        diode_send_command.append(context.log_config_diode_send)
+    diode_send_command = [f'{context.bin_dir}/diode-send', '-c', lidi_config]
 
     context.proc_diode_send = subprocess.Popen(diode_send_command, stdout=stdout, stderr=stderr)
     time.sleep(0.5)
@@ -123,11 +158,6 @@ def start_diode(context):
         network_command.append(str(context.network_up_after))
         network_behavior = True
 
-#    if context.network_max_bandwidth:
-#        network_command.append('--max-bandwidth')
-#        network_command.append(str(context.network_max_bandwidth))
-#        network_behavior = True
-
     if context.network_drop:
         network_command.append('--loss-rate')
         network_command.append(context.network_drop)
@@ -150,7 +180,7 @@ def start_diode(context):
     time.sleep(1)
 
     # start diode-receive (connects to diode-receive-file)
-    start_diode_receive(context, network_behavior)
+    start_diode_receive(context)
 
     # finally start diode-send (send init packet to diode-receive, acts as a server for diode-send-file)
     start_diode_send(context)
@@ -175,7 +205,7 @@ def step_impl(context):
     stop_diode_receive(context)
     # wait some time to prevent address already in use if restarted too quickly
     time.sleep(5)
-    start_diode_receive(context, False)
+    start_diode_receive(context)
 
 @when('diode-send is restarted')
 def step_impl(context):
@@ -194,3 +224,8 @@ def step_diode_started_with_max_throughput(context, throughput, mtu):
     context.read_rate = int(throughput) * 1000000
     context.mtu = int(mtu)
     start_throttled_diode(context, int(context.read_rate / 8))
+
+@given('encoding block size is {encoding} and repair block size is {repair}')
+def step_set_encoding_repair_block_size(context, encoding, repair):
+    context.repair_block = 20000
+    context.block_size = 20000

@@ -38,7 +38,6 @@ class Context:
 context = Context()
 context.mtu = 9000
 context.block_size = 300000
-context.send_nb_threads = 4
 context.quiet = True
 
 file_count = 1000

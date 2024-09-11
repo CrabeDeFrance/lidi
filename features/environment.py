@@ -53,7 +53,6 @@ def before_scenario(context, _feature):
     # perf options
     context.mtu = None
     context.block_size = None
-    context.send_nb_threads = 1
 
     # display
     context.quiet = False
@@ -65,6 +64,10 @@ def before_scenario(context, _feature):
 
     #setup_log_config(context, context.log_dir.name)
     setup_log_config(context, "/dev/shm")
+    context.lidi_config_path = "/dev/shm"
+
+    context.block_size = None
+    context.repair_block = None
 
 
 # function called after every test : cleanup (delete temp directories & kill processes)

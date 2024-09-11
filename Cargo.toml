@@ -13,7 +13,7 @@ libc = "0.2"
 log = "0.4"
 rand = "0.8"
 raptorq = "2"
-nix = { version = "0.29", features = [ "socket" ]}
+nix = { version = "0.29", features = [ "socket", "uio" ]}
 rand_xorshift = "0.3"
 human_bytes = { version = "0.4", default-features = false }
 bitflags = "2"
@@ -21,7 +21,12 @@ thiserror = "1"
 log4rs = "1"
 metrics = "0.23"
 metrics-exporter-prometheus = "0.15"
-inotify = "0.10"
+inotify = "0.11"
+seq-macro = "0.3"
+affinity = "0.1"
+serde = "1"
+toml = "0.8"
+core_affinity = "0.8"
 
 [dev-dependencies]
 criterion = "0.5"

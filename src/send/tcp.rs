@@ -1,9 +1,11 @@
 //! Worker that reads data from a client socket and split it into [crate::protocol] messages
 
 use metrics::counter;
+use nix::sys::socket::sockopt::{RcvBuf, SndBuf};
+use nix::sys::socket::{getsockopt, setsockopt};
 
 use crate::protocol::{Header, MessageType, FIRST_BLOCK_ID, PAYLOAD_OVERHEAD};
-use crate::{protocol, send, sock_utils};
+use crate::{protocol, send};
 use std::io::Read;
 use std::time::{Duration, Instant};
 use std::{io, net, thread::sleep};
@@ -109,18 +111,18 @@ impl Tcp {
 
     pub fn configure(&mut self) -> Result<(), send::Error> {
         // configure set_sock_buffer_size
-        let buffer_size = self.buffer.len() as u32;
+        let buffer_size = self.buffer.len();
 
-        let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&self.client)?;
-        if (sock_buffer_size as u32) < 2 * buffer_size {
+        let sock_buffer_size = getsockopt(&self.client, RcvBuf)?;
+        if (sock_buffer_size) < 2 * buffer_size {
             // TODO pourquoi tester contre 2 x buffersize mais configurer seulement buffersize ?
-            sock_utils::set_socket_recv_buffer_size(&mut self.client, buffer_size as i32)?;
-            let new_sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&self.client)?;
+            setsockopt(&self.client, SndBuf, &buffer_size)?;
+            let new_sock_buffer_size = getsockopt(&self.client, SndBuf)?;
             log::debug!(
                 "tcp socket recv buffer size set to {}",
                 new_sock_buffer_size
             );
-            if (new_sock_buffer_size as u32) < 2 * buffer_size {
+            if new_sock_buffer_size < 2 * buffer_size {
                 log::warn!(
                     "tcp socket recv buffer may be too small to achieve optimal performances"
                 );
@@ -166,7 +168,7 @@ impl Tcp {
                         return Ok(None);
                     }
                 }
-                _ => return Err(e.into()),
+                _ => return Err(e),
             },
             Ok(0) => {
                 log::trace!("tcp : end of stream");

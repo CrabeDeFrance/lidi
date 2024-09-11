@@ -1,21 +1,12 @@
-pub mod error;
+pub mod config;
 pub mod file;
 pub mod protocol;
 pub mod receive;
 pub mod send;
-
-// Allow unsafe code to call libc function setsockopt.
-#[allow(unsafe_code)]
-pub mod sock_utils;
-
-// Allow unsafe code to initialize C structs and call
-// libc functions recv_mmsg and send_mmsg.
-//#[allow(unsafe_code)]
-//pub mod udp;
-
 pub mod test;
+pub mod udp;
 
-use log::LevelFilter;
+use log::{info, LevelFilter};
 use log4rs::{
     append::console::{ConsoleAppender, Target},
     config::{Appender, Root},
@@ -23,19 +14,28 @@ use log4rs::{
     Config,
 };
 use metrics_exporter_prometheus::PrometheusBuilder;
-use std::{net::SocketAddr, str::FromStr};
+use std::{
+    io::{Error, ErrorKind, Result},
+    net::SocketAddr,
+    str::FromStr,
+};
 
-pub fn init_logger(log_config: Option<&String>, debug: u8) {
+pub fn init_logger(log_config: Option<&String>, log_level: &str) -> Result<()> {
+    // use log4rs configuration file if set in main config
     if let Some(file) = log_config {
+        let _ = std::fs::metadata(file)?;
         let _handle = log4rs::init_file(file, Default::default());
     } else {
-        // Use this to change log levels at runtime.
-        // This means you can change the default log level to trace
-        // if you are trying to debug an issue and need more logs on
-        let level = match debug {
-            0 => LevelFilter::Info,
-            1 => LevelFilter::Debug,
-            _ => LevelFilter::Trace,
+        // use log level set in parameter
+        let level = match LevelFilter::from_str(log_level) {
+            Ok(level_filter) => level_filter,
+
+            Err(e) => {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    format!("Invalid log level string: {log_level}: {e}"),
+                ));
+            }
         };
 
         // Build a stderr logger.
@@ -49,17 +49,45 @@ pub fn init_logger(log_config: Option<&String>, debug: u8) {
                     .build("stdout", Box::new(stdout)),
             )
             .build(Root::builder().appender("stdout").build(level))
-            .expect("Cannot build log config");
+            .map_err(|e| {
+                Error::new(
+                    ErrorKind::InvalidData,
+                    format!("Cannot build log config: {e}"),
+                )
+            })?;
 
-        let _handle = log4rs::init_config(config).expect("Cannot init log4rs config");
+        log4rs::init_config(config).map_err(|e| {
+            Error::new(
+                ErrorKind::InvalidData,
+                format!("Cannot init log4rs config: {e}"),
+            )
+        })?;
     }
+
+    Ok(())
 }
 
-pub fn init_metrics(prom_url: Option<&String>) {
+pub fn init_metrics(prom_url: Option<&str>) -> Result<()> {
     if let Some(addr) = prom_url {
+        let addr = SocketAddr::from_str(addr).map_err(|e| {
+            Error::new(
+                ErrorKind::InvalidInput,
+                format!("cannot parse address: {e}"),
+            )
+        })?;
+
         PrometheusBuilder::new()
-            .with_http_listener(SocketAddr::from_str(addr).expect("Invalid metrics address"))
+            .with_http_listener(addr)
             .install()
-            .expect("Cannot init prometheus");
+            .map_err(|e| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("cannot start http listener on {addr}: {e}"),
+                )
+            })?;
+
+        info!("Metrics endpoint started on {addr}");
     }
+
+    Ok(())
 }

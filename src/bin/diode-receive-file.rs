@@ -16,11 +16,11 @@ struct SendFileConfig {
     #[arg(long, default_value_t = false)]
     hash: bool,
     /// Path to log configuration file
-    #[arg(short, long)]
+    #[arg(long)]
     log_config: Option<String>,
     /// Verbosity level. Using it multiple times adds more logs.
-    #[arg(short, long, action = clap::ArgAction::Count)]
-    pub debug: u8,
+    #[arg(long, default_value_t = String::from("info"))]
+    pub log_level: String,
     /// Output directory
     #[arg()]
     dir: String,
@@ -40,7 +40,10 @@ fn main() {
         hash,
     };
 
-    init_logger(args.log_config.as_ref(), args.debug);
+    if let Err(e) = init_logger(args.log_config.as_ref(), &args.log_level) {
+        eprintln!("Unable to init log {:?}: {}", args.log_config, e);
+        return;
+    }
 
     loop {
         if let Err(e) = file::receive::receive_files(&config, &output_directory) {
