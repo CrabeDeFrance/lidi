@@ -52,8 +52,8 @@ Here is a sample of the configuration file :
    # TCP server socket to accept data
    bind_tcp = "127.0.0.1:5001"
    
-   # ratelimit TCP session speed (in bit/s)
-   max_bandwidth = 100000000
+   # ratelimit Lidi output (UDP packets throughput). In Mbit/s.
+   max_bandwidth = 100
    
    # prometheus port
    # metrics = "0.0.0.0:9001"

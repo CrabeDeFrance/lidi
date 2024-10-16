@@ -1,20 +1,20 @@
 # Size of RaptorQ block, in bytes
-encoding_block_size = 60000
+encoding_block_size = 300000
 
 # Size of repair data, in bytes
-repair_block_size = 6000
+repair_block_size = 30000
 
 # IP address on diode-receive side used to transfert UDP packets between diode-send and diode-receive
 udp_addr = "127.0.0.1"
 
 # List of ports used to transfert packets between diode-send and diode-receive. There must be one different port per thread.
-udp_port = [ 5000 ]
+udp_port = [ 5000, 5001, 5002, 5003 ]
 
 # MTU of the to use one the UDP link
-udp_mtu = 1500
+udp_mtu = 9000
 
 # heartbeat period in ms
-heartbeat = 1000
+heartbeat = 100
 
 # Path to log configuration file
 # log_config = "./lidi_log4rs.yml"
@@ -24,8 +24,8 @@ heartbeat = 1000
 # TCP server socket to accept data
 bind_tcp = "127.0.0.1:5001"
 
-# ratelimit TCP session speed (in bit/s).
-max_bandwidth = 10000000
+# ratelimit TCP session speed (in Mbit/s).
+max_bandwidth = 9500
 
 # prometheus port
 metrics = "0.0.0.0:9001"

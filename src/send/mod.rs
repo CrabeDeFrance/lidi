@@ -66,9 +66,12 @@ use std::{net, thread, time};
 
 pub mod encoding;
 pub mod tcp;
+mod throttle;
+
 use crate::udp::Udp;
 use crossbeam_channel::{Receiver, Sender};
 use metrics::counter;
+use throttle::Throttle;
 
 /// An instance of this data structure is shared by workers to synchronize them and to access
 /// communication channels
@@ -114,7 +117,11 @@ impl TryFrom<DiodeConfig> for SenderConfig {
         // this happens when no rate limit (max throughput) is configured, so
         // tcp thread reads as fast as possible, and it is quicker than tx threads.
         (0..config.udp_port.len()).for_each(|_| {
-            let (tx, rx) = crossbeam_channel::bounded::<(Header, Vec<u8>)>(1000);
+            // the fifo capacity value must be as small as possible, to prevent too many
+            // disordering, throttling issues and consuming a lot of useless memory,
+            // but big enough to prevent starvation on udp tx thread
+            // tcp thread will block on this when the fifo is full
+            let (tx, rx) = crossbeam_channel::bounded::<(Header, Vec<u8>)>(3);
             to_encoding.push(tx);
             for_encoding.push(rx);
         });
@@ -169,6 +176,7 @@ impl SenderConfig {
         for_encoding: Receiver<(Header, Vec<u8>)>,
         encoding: Encoding,
         mut sender: Udp,
+        mut throttle: Option<Throttle>,
     ) {
         loop {
             let packets;
@@ -204,6 +212,16 @@ impl SenderConfig {
 
                     let packet = packet.serialize();
                     let payload_len = packet.len();
+
+                    // sleep to respect rate limit
+                    if let Some(ref mut throttle) = throttle {
+                        // to try to match real packet size, add network header size:
+                        // eth 14, ip 20, udp 8 = 42
+                        // maybe we should be able to change this in configuration ?
+                        let packet_len = payload_len + 42;
+                        throttle.limit(packet_len);
+                    }
+
                     match sender.send(header, packet) {
                         Ok(_) => {
                             counter!("tx_udp_pkts").increment(1);
@@ -222,7 +240,6 @@ impl SenderConfig {
     fn tcp_listener_loop(
         listener: net::TcpListener,
         from_buffer_size: u32,
-        max_bandwidth: Option<f64>,
         to_encoding: Vec<Sender<(Header, Vec<u8>)>>,
     ) {
         let mut session_id = FIRST_SESSION_ID;
@@ -235,8 +252,7 @@ impl SenderConfig {
                     return;
                 }
                 Ok(client) => {
-                    let mut tcp =
-                        tcp::Tcp::new(client, from_buffer_size, session_id, max_bandwidth);
+                    let mut tcp = tcp::Tcp::new(client, from_buffer_size, session_id);
 
                     if let Err(e) = tcp.configure() {
                         log::warn!("client: error: {e}");
@@ -317,6 +333,14 @@ impl SenderConfig {
         let object_transmission_info = self.object_transmission_info;
         let heartbeat_interval = self.hearbeat_interval;
 
+        // we have to multiply by 1 million because bandwidth is in Mbit/s in configuration,
+        // when throttle module uses bit/s
+        // we divide max bandwitdh by the number of thread sending data in parallel, each thread
+        // having is own throttling instance
+        let max_bandwidth = self
+            .max_bandwidth
+            .map(|max| max * 1_000_000.0 / nb_threads as f64);
+
         for i in 0..nb_threads {
             let for_encoding = for_encoding[i].clone();
             let port_list = self.udp_port_list.clone();
@@ -358,8 +382,10 @@ impl SenderConfig {
                         }
                     }
 
+                    let throttle = max_bandwidth.map(Throttle::new);
+
                     // loop on packets to send
-                    SenderConfig::start_encoder_sender(for_encoding, encoding, sender);
+                    SenderConfig::start_encoder_sender(for_encoding, encoding, sender, throttle);
                 })?;
             threads.push(tx_thread);
         }
@@ -397,18 +423,12 @@ impl SenderConfig {
         };
 
         let from_buffer_size = self.from_buffer_size;
-        let max_bandwidth = self.max_bandwidth;
         let to_encoding = self.to_encoding.clone();
 
         let tcp_thread = thread::Builder::new()
             .name("lidi_tx_tcp".into())
             .spawn(move || {
-                SenderConfig::tcp_listener_loop(
-                    tcp_listener,
-                    from_buffer_size,
-                    max_bandwidth,
-                    to_encoding,
-                )
+                SenderConfig::tcp_listener_loop(tcp_listener, from_buffer_size, to_encoding)
             })?;
 
         threads.push(tcp_thread);

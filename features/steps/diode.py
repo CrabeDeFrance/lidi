@@ -55,7 +55,7 @@ heartbeat = 500
 # TCP server socket to accept data
 bind_tcp = "127.0.0.1:5000"
 
-# ratelimit TCP session speed (in bit/s)
+# ratelimit TCP session speed (in Mbit/s)
 {max_bandwidth}
 
 # specific options for diode-receive
