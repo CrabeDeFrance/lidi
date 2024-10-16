@@ -15,11 +15,11 @@ A single thread can send multiple gigabits per second so continuous packet drops
 .. code-block::
 
    [sender]
-   max_bandwidth = <bit/s>
+   max_bandwidth = <Mbit/s>
 
 .. note::
 
-   Currently, rate limit is applied at TCP receive level. At this stage, the overhead introduced by repair blocks and UDP packet's headers is not computed (to be fixed). That means this value should be lower than the output interface speed, including the overhead introduced by repair blocks and UDP packets.
+   This rate limiter tries to match the real bandwith consumption on the network. It includes all overheads due to repair packets and headers. For headers, an assumption is done about the transport layer, which is independant of lidi: the computation is done for packets having Ethernet + IP + UDP headers for a sum of 42 bytes. That means if there are more headers, the real throughput will be higher than what is set in the configuration. 
 
 .. _multithreading:
 
