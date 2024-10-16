@@ -21,7 +21,7 @@ It aims to fix several issues and improve the following topics:
 
 ## Where to find some documentation?
 
-The *user* documentation is available (here)[https://crabedefrance.github.io/lidi/] or can be built and opened with:
+The *user* documentation is available [here](https://crabedefrance.github.io/lidi/) or can be built and opened with:
 
 ```
 $ apt install python3-sphinx python3-sphinx-rtd-theme
