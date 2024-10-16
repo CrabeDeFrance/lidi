@@ -1,7 +1,8 @@
 name: Doc
 on:
   push:
-    branches: [ doc ]
+    branches:
+      - main
 
 jobs:
   doc-build-and-deploy:
