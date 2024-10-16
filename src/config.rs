@@ -29,7 +29,7 @@ pub struct DiodeConfig {
 pub struct DiodeSenderConfig {
     /// TCP server socket to accept data
     pub bind_tcp: String,
-    /// ratelimit TCP session speed (in bit/s)
+    /// ratelimit TCP session speed (in Mbit/s)
     pub max_bandwidth: Option<f64>,
     /// prometheus port (sender)
     pub metrics: Option<String>,

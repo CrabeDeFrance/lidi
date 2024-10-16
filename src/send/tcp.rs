@@ -7,64 +7,7 @@ use nix::sys::socket::{getsockopt, setsockopt};
 use crate::protocol::{Header, MessageType, FIRST_BLOCK_ID, PAYLOAD_OVERHEAD};
 use crate::{protocol, send};
 use std::io::Read;
-use std::time::{Duration, Instant};
-use std::{io, net, thread::sleep};
-
-struct Throttle {
-    instant: Instant,
-    previous_elapsed: f64,
-    refresh_rate: f64,
-    current_tokens: f64,
-    max_tokens: f64,
-}
-
-impl Throttle {
-    /// rate is in bit/s
-    fn new(rate: f64) -> Self {
-        log::debug!("Throttling at {rate} bits/s");
-        let instant = Instant::now();
-        let previous_elapsed = instant.elapsed().as_secs_f64();
-        Self {
-            instant,
-            previous_elapsed,
-            refresh_rate: rate,
-            max_tokens: rate,
-            // starts at 0 to try to limit bursts
-            current_tokens: 0.0,
-        }
-    }
-
-    fn refresh(&mut self) {
-        // first compute time since last call
-        let elapsed = self.instant.elapsed().as_secs_f64();
-        let diff = elapsed - self.previous_elapsed;
-        self.previous_elapsed = elapsed;
-
-        // add tokens in the bucket
-        self.current_tokens += self.refresh_rate * diff;
-
-        // max the bucket
-        if self.current_tokens > self.max_tokens {
-            self.current_tokens = self.max_tokens;
-        }
-    }
-
-    /// give the amount of read bytes
-    fn limit(&mut self, bytes: usize) {
-        self.refresh();
-
-        let bits = bytes * 8;
-        // check if we have enough tokens
-        while self.current_tokens < bits as f64 {
-            // sleep
-            sleep(Duration::from_millis(10));
-            self.refresh();
-        }
-
-        // remove current packet length
-        self.current_tokens -= bits as f64;
-    }
-}
+use std::{io, net};
 
 pub struct Tcp {
     /// buffer to store needed data
@@ -81,17 +24,10 @@ pub struct Tcp {
     session_id: u8,
     /// current block counter
     block_id: u8,
-    /// rate limiter module
-    throttle: Option<Throttle>,
 }
 
 impl Tcp {
-    pub fn new(
-        client: net::TcpStream,
-        buffer_size: u32,
-        session_id: u8,
-        rate_limit: Option<f64>,
-    ) -> Self {
+    pub fn new(client: net::TcpStream, buffer_size: u32, session_id: u8) -> Self {
         Self {
             buffer: vec![0; buffer_size as _],
             // we always start at PAYLOAD_OVERHEAD to keep some room to store read length
@@ -101,7 +37,6 @@ impl Tcp {
             message_type: MessageType::Start | MessageType::Data,
             session_id,
             block_id: FIRST_BLOCK_ID,
-            throttle: rate_limit.map(Throttle::new),
         }
     }
 
@@ -203,11 +138,6 @@ impl Tcp {
         // diode-send-file)
         let read_size = self.cursor - PAYLOAD_OVERHEAD;
         self.buffer[0..PAYLOAD_OVERHEAD as _].copy_from_slice(&u32::to_be_bytes(read_size as _));
-
-        // sleep to respect rate limit
-        if let Some(throttle) = &mut self.throttle {
-            throttle.limit(self.cursor);
-        }
 
         log::trace!("tcp reset cursor");
         self.transmitted += self.cursor;
