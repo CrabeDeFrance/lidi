@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configuration file &mdash; Lidi 0.8.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=86f27845" />
+
+  
+  
+        <script src="_static/jquery.js?v=8dae8fb0"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=486e5634"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Network configuration" href="network.html" />
+    <link rel="prev" title="Command line parameters" href="parameters.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Lidi
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="gstarted.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="session.html">Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Configuration file</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">Configuration file sample</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timers.html">Timers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Sample applications to exchanging files</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Lidi</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Configuration file</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/configuration_file.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="configuration-file">
+<span id="id1"></span><h1>Configuration file<a class="headerlink" href="#configuration-file" title="Link to this heading"></a></h1>
+<p>When running <cite>diode-send</cite> and <cite>diode-receive</cite> with cargo, a configuration file is mandatory. By default, Lidi loads the file located at <cite>/etc/lidi/config.toml</cite>.</p>
+<p>It is possible to change the default configuration file used by Lidi, as explained in <a class="reference internal" href="parameters.html#command-line-parameters"><span class="std std-ref">Command line parameters</span></a></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send -- --config ./lidi.toml
+</pre></div>
+</div>
+<p id="configuration-file-sample">In the configuration file, there are parameters which must be the same on both side of the diode. They are in the first part of the configuration file. After this common paragraph, there is one part for specific options for the sender application and another for receiver application.</p>
+<p>In the following chapters, we will detail all the configuration options, grouped by topics.</p>
+<section id="id2">
+<h2>Configuration file sample<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>Here is a sample of the configuration file :</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Size of RaptorQ block, in bytes</span>
+<span class="n">encoding_block_size</span> <span class="o">=</span> <span class="mi">60000</span>
+
+<span class="c1"># Size of repair data, in bytes</span>
+<span class="n">repair_block_size</span> <span class="o">=</span> <span class="mi">6000</span>
+
+<span class="c1"># IP address on diode-receive side used to transfert UDP packets between diode-send and diode-receive</span>
+<span class="n">udp_addr</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1&quot;</span>
+
+<span class="c1"># List of ports used to transfert packets between diode-send and diode-receive. There must be one different port per thread.</span>
+<span class="n">udp_port</span> <span class="o">=</span> <span class="p">[</span> <span class="mi">5000</span> <span class="p">]</span>
+
+<span class="c1"># MTU of the to use one the UDP link</span>
+<span class="n">udp_mtu</span> <span class="o">=</span> <span class="mi">1500</span>
+
+<span class="c1"># heartbeat period in ms</span>
+<span class="n">heartbeat</span> <span class="o">=</span> <span class="mi">1000</span>
+
+<span class="c1"># Path to log configuration file</span>
+<span class="c1"># log_config = &quot;./lidi_log4rs.yml&quot;</span>
+
+<span class="c1"># specific options for diode-send</span>
+<span class="p">[</span><span class="n">sender</span><span class="p">]</span>
+
+<span class="c1"># TCP server socket to accept data</span>
+<span class="n">bind_tcp</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1:5001&quot;</span>
+
+<span class="c1"># ratelimit TCP session speed (in bit/s)</span>
+<span class="n">max_bandwidth</span> <span class="o">=</span> <span class="mi">100000000</span>
+
+<span class="c1"># prometheus port</span>
+<span class="c1"># metrics = &quot;0.0.0.0:9001&quot;</span>
+
+<span class="c1"># specific options for diode-receive</span>
+<span class="p">[</span><span class="n">receiver</span><span class="p">]</span>
+
+<span class="c1"># IP address and port of the TCP server</span>
+<span class="n">to_tcp</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1:5002&quot;</span>
+
+<span class="c1"># Timeout before forcing incomplete block recovery (in ms). Default is one time heartbeat interval.</span>
+<span class="c1"># block_expiration_timeout = 500</span>
+
+<span class="c1"># Time to wait before changing session (in ms). Default is 5 times heartbeat interval.</span>
+<span class="c1"># session_expiration_timeout = 5000</span>
+
+<span class="c1"># prometheus port</span>
+<span class="c1"># metrics = &quot;0.0.0.0:9002&quot;</span>
+
+<span class="c1"># core_affinity = [ 1 ]</span>
+</pre></div>
+</div>
+<p>Options are detailed in the following chapters:</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt>Mandatory network options</dt><dd><ul>
+<li><p><cite>udp_addr</cite>, <cite>udp_port</cite>, <cite>bind_tcp</cite> and <cite>to_tcp</cite> are explained in <a class="reference internal" href="network.html#network"><span class="std std-ref">Network configuration</span></a></p></li>
+<li><p><cite>max_bandwidth</cite> is described in <a class="reference internal" href="performance.html#ratelimit"><span class="std std-ref">Rate limiting</span></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>Performance optimization options</dt><dd><ul>
+<li><p><cite>encoding_block_size</cite> and <cite>repair_block_size</cite> are explained in <a class="reference internal" href="performance.html#raptorq"><span class="std std-ref">Block sizes</span></a></p></li>
+<li><p><cite>udp_mtu</cite> is explained in <a class="reference internal" href="performance.html#mtu"><span class="std std-ref">Packet sizes</span></a></p></li>
+<li><p><cite>core_affinity</cite> is explained in <a class="reference internal" href="performance.html#affinity"><span class="std std-ref">Core affinity</span></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>Monitoring options</dt><dd><ul>
+<li><p><cite>log_config</cite> is explained in <a class="reference internal" href="logging.html#logging"><span class="std std-ref">Logging</span></a>. See also <a class="reference internal" href="parameters.html#command-line-parameters"><span class="std std-ref">Command line parameters</span></a> change log level on console.</p></li>
+<li><p><cite>metrics</cite> is detailed in <a class="reference internal" href="metrics.html#metrics"><span class="std std-ref">Metrics</span></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>Timers</dt><dd><ul>
+<li><p><cite>heartbeat</cite>, <cite>block_expiration_timeout</cite> and <cite>session_expiration_timeout</cite> are explained in <a class="reference internal" href="timers.html#timers"><span class="std std-ref">Timers</span></a></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+<p>Do not forget there are kernel parameters to set in order to prevent packet drops in kernel. This is explained in <a class="reference internal" href="performance.html#tweaking-parameters"><span class="std std-ref">Kernel parameters</span></a></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="parameters.html" class="btn btn-neutral float-left" title="Command line parameters" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="network.html" class="btn btn-neutral float-right" title="Network configuration" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, ANSSI-FR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -6,22 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Metrics &mdash; Lidi 0.8.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=86f27845" />
 
   
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
   
-        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/jquery.js?v=8dae8fb0"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
         <script src="_static/documentation_options.js?v=486e5634"></script>
-        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Exchanging files with Lidi" href="files.html" />
+    <link rel="next" title="Timers" href="timers.html" />
     <link rel="prev" title="Logging" href="logging.html" /> 
 </head>
 
@@ -47,11 +44,14 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="gstarted.html">Getting started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="parameters.html">Basic command line parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="session.html">Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_file.html">Configuration file</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Metrics</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#prometheus-configuration">Prometheus configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#prometheus-endpoint-configuration">Prometheus endpoint configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#relevant-metrics">Relevant metrics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#diode-send">diode-send</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#diode-receive">diode-receive</a></li>
@@ -59,7 +59,8 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="files.html">Exchanging files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timers.html">Timers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Sample applications to exchanging files</a></li>
 </ul>
 
         </div>
@@ -88,12 +89,21 @@
              
   <section id="metrics">
 <span id="id1"></span><h1>Metrics<a class="headerlink" href="#metrics" title="Link to this heading"></a></h1>
-<section id="prometheus-configuration">
-<h2>Prometheus configuration<a class="headerlink" href="#prometheus-configuration" title="Link to this heading"></a></h2>
-<p>diode-send and diode-receive implements a metric system compatible with prometheus.
-To enable this system, is it required to provide url which will be scrapped by prometheus.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cargo</span> <span class="n">run</span> <span class="o">--</span><span class="n">release</span> <span class="o">--</span><span class="nb">bin</span> <span class="o">&lt;</span><span class="n">myapp</span><span class="o">&gt;</span> <span class="o">--</span> <span class="o">--</span><span class="n">metrics</span> <span class="mf">0.0.0.0</span><span class="p">:</span><span class="mi">1234</span> <span class="o">...</span>
+<section id="prometheus-endpoint-configuration">
+<h2>Prometheus endpoint configuration<a class="headerlink" href="#prometheus-endpoint-configuration" title="Link to this heading"></a></h2>
+<p><cite>diode-send</cite> and <cite>diode-receive</cite> implements a metric system compatible with <a class="reference external" href="https://prometheus.io/">Prometheus</a>.
+To enable this system, is it required to provide the url which will be scrapped by prometheus.</p>
+<p>There are two urls to set, one for the sender and one for the receiver. They both are under the “metric” option.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">sender</span><span class="p">]</span>
+<span class="n">metrics</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1:9001&quot;</span>
+
+<span class="p">[</span><span class="n">receiver</span><span class="p">]</span>
+<span class="n">metrics</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1:9001&quot;</span>
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When running on the same host for tests, it is necessary to put different ports or it will fail with the following error: <cite>Cannot init metrics: cannot start http listener: failed to create HTTP listener: Address already in use</cite></p>
 </div>
 </section>
 <section id="relevant-metrics">
@@ -101,32 +111,39 @@ To enable this system, is it required to provide url which will be scrapped by p
 <section id="diode-send">
 <h3>diode-send<a class="headerlink" href="#diode-send" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p>tx_sessions            : total number of TCP connections to diode-send</p></li>
-<li><p>tx_tcp_blocks          : total number of blocks received on TCP session</p></li>
-<li><p>tx_tcp_bytes           : total number of bytes received on TCP session</p></li>
+<li><p>tx_sessions            : total number of TCP connections accepted by diode-send</p></li>
+<li><p>tx_tcp_blocks          : total number of blocks received on TCP sessions</p></li>
+<li><p>tx_tcp_bytes           : total number of bytes received on TCP sessions</p></li>
 <li><p>tx_encoding_blocks     : total number of blocks successfully encoded</p></li>
 <li><p>tx_encoding_blocks_err : total number of blocks lost due to encoding error</p></li>
-<li><p>tx_udp_pkts            : total number of UDP packets successfully sent</p></li>
-<li><p>tx_udp_bytes           : total number of bytes successfully sent in UDP packets</p></li>
+<li><p>tx_udp_pkts            : total number of UDP packets successfully sent to diode-receive</p></li>
+<li><p>tx_udp_bytes           : total number of bytes successfully sent on UDP packets to diode-receive. This only is the udp payload without lidi header, this does not contain network transport headers of packets (Eth/IP/UDP). Since it contains repair packets and one raptorq header per block, the value is bigger than tx_tcp_bytes.</p></li>
 <li><p>tx_udp_pkts_err        : total number of UDP packets not sent (socket error)</p></li>
 <li><p>tx_udp_bytes_err       : total number of bytes not sent (socket error)</p></li>
 </ul>
 </section>
 <section id="diode-receive">
 <h3>diode-receive<a class="headerlink" href="#diode-receive" title="Link to this heading"></a></h3>
+<p>All stats of diode-receive starts with <cite>rx</cite>.</p>
 <ul class="simple">
-<li><p>rx_sessions            : total number of completed TCP sessions</p></li>
-<li><p>rx_decoding_blocks     : total number of blocks successfully decoded</p></li>
-<li><p>rx_decoding_blocks_err : total number of blocks lost due to decoding error</p></li>
-<li><p>rx_udp_pkts            : total number of UDP packets successfully received</p></li>
-<li><p>rx_udp_bytes           : total number of bytes successfully received from UDP packets</p></li>
-<li><p>rx_udp_pkts_err        : total number of UDP packets not received (socket error)</p></li>
-<li><p>rx_tcp_blocks          : total number of blocks sent on TCP session</p></li>
-<li><p>rx_tcp_blocks_err      : total number of lost blocks, not sent on TCP session (socket error)</p></li>
-<li><p>rx_tcp_bytes           : total number of bytes sent on TCP session</p></li>
-<li><p>rx_tcp_bytes_err       : total number of lost bytes, not sent on TCP session (socket error)</p></li>
+<li><p>rx_sessions                   : total number of completed TCP sessions</p></li>
+<li><p>rx_decoding_blocks            : total number of blocks successfully decoded</p></li>
+<li><p>rx_decoding_blocks_err        : total number of blocks lost due to decoding error</p></li>
+<li><p>rx_udp_pkts                   : total number of UDP packets successfully received</p></li>
+<li><p>rx_udp_bytes                  : total number of bytes successfully received from UDP packets</p></li>
+<li><p>rx_udp_deserialize_header_err : total number of lost UDP packets due to corrupted header</p></li>
+<li><p>rx_udp_recv_pkts_err          : total number of read socket failure</p></li>
+<li><p>rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue</p></li>
+<li><p>rx_tcp_blocks                 : total number of blocks sent on TCP session</p></li>
+<li><p>rx_tcp_blocks_err             : total number of lost blocks, not sent on TCP session (socket error)</p></li>
+<li><p>rx_tcp_bytes                  : total number of bytes sent on TCP session</p></li>
+<li><p>rx_tcp_bytes_err              : total number of lost bytes, not sent on TCP session (socket error)</p></li>
+<li><p>rx_pop_ok_packets             : total number of packets sent to reordering module and which completed blocks. Reordering module used this packet to complete a block and returns it. This value should be equal or inferior to rx_decoding_blocks. (Inferior because we can sometimes successfully decode a block even if we do not have all packets (see rx_pop_timeout_with_packets).</p></li>
+<li><p>rx_pop_ok_none                : total number of packets sent to reordering module, without finishing a block. Reordering module kept this packet and returned nothing, waiting for other packets to finish a block</p></li>
+<li><p>rx_pop_timeout_with_packets   : the current block did not receive the needed packets to complete it before a timeout occurs. We will try to decode the block and maybe succeed if we received enough data.</p></li>
+<li><p>rx_pop_timeout_none           : a timeout happens when there was no waiting packet for the current block.</p></li>
+<li><p>rx_skip_block                 : number of completed blocks dropped because the session is broken (we lost a previous block).</p></li>
 </ul>
-<p>TODO: document reorder metrics</p>
 </section>
 </section>
 </section>
@@ -136,7 +153,7 @@ To enable this system, is it required to provide url which will be scrapped by p
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="logging.html" class="btn btn-neutral float-left" title="Logging" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="files.html" class="btn btn-neutral float-right" title="Exchanging files with Lidi" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="timers.html" class="btn btn-neutral float-right" title="Timers" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

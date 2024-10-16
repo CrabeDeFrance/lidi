@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" data-content_root="./">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Index &mdash; Lidi 0.8.0 documentation</title>
+  <title>Session &mdash; Lidi 0.8.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=86f27845" />
 
@@ -15,8 +16,10 @@
         <script src="_static/doctools.js?v=888ff710"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
-    <link rel="index" title="Index" href="#" />
-    <link rel="search" title="Search" href="search.html" /> 
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Command line parameters" href="parameters.html" />
+    <link rel="prev" title="Getting started" href="gstarted.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -39,9 +42,9 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="gstarted.html">Getting started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="session.html">Session</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Session</a></li>
 <li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_file.html">Configuration file</a></li>
 <li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
@@ -66,8 +69,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Index</li>
+      <li class="breadcrumb-item active">Session</li>
       <li class="wy-breadcrumbs-aside">
+            <a href="_sources/session.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -75,17 +79,24 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-
-<h1 id="index">Index</h1>
-
-<div class="genindex-jumpbox">
- 
-</div>
+  <section id="session">
+<span id="id1"></span><h1>Session<a class="headerlink" href="#session" title="Link to this heading"></a></h1>
+<p>To be as transparent as possible on the network, diode-send acts as a TCP server and diode-receive as a TCP client. Between diode-send and diode-receive, one or multiple UDP channels are created.</p>
+<p>To send data, a session must be created by an application with diode-send. A session is a TCP connection. This TCP connection can be used to send any type of data, for instance one or multiple files. If needed, this application is responsible of managing a specific protocol to send data and metadata (for instance the content of a file and the filename). Lidi does not know what is send over the network.
+Lidi only manages session’s start or end. On the receiver side, lidi diode-receive will open and close TCP connections to a receiver application (like diode-receive-file), in respect of what happened on the sender side.
+Due to technical constraints, the sender must close the session when data transfer is done. The sender side cannot keep TCP connections opened without sending any data, for instance to reuse it later. Application must open a TCP connection, send data, then close it.
+Lidi receiver will automatically close unused session after some time (see the <a class="reference internal" href="timers.html#timeouts"><span class="std std-ref">Blocks and sessions timeouts</span></a> chapter for more details on how to configure session’s timeout).</p>
+<p>Since Lidi is using an encoder/decoder (RaptorQ) it will split session in block. Each block will be processed by the coding algorithm. Once blocks are encoded, repair packets can be added to improve transfer reliability. But if a block (because too many packets are lost), there is no way to restore it and the session is lost. All blocks after the first lost will be discarded and Lidi will wait for a new session to setup.</p>
+<p>To conclude, it is important not to keep session active for too long. TCP clients must close and create new TCP connection periodically. For instance, <cite>diode-send-file</cite> naturally closes the TCP connection when all files on command line are sent. <cite>diode-send-dir</cite> is an application which never ends, so it has an option to restart the TCP connection after a given amount of transfered files: this aims to limit the number of files lost when a network issue occurs.</p>
+</section>
 
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="gstarted.html" class="btn btn-neutral float-left" title="Getting started" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="parameters.html" class="btn btn-neutral float-right" title="Command line parameters" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 

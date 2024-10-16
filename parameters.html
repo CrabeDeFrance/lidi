@@ -4,25 +4,22 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Basic command line parameters &mdash; Lidi 0.8.0 documentation</title>
+  <title>Command line parameters &mdash; Lidi 0.8.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=86f27845" />
 
   
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
   
-        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/jquery.js?v=8dae8fb0"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
         <script src="_static/documentation_options.js?v=486e5634"></script>
-        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Performance and fiability parameters" href="performance.html" />
-    <link rel="prev" title="Getting started" href="gstarted.html" /> 
+    <link rel="next" title="Configuration file" href="configuration_file.html" />
+    <link rel="prev" title="Session" href="session.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -47,25 +44,23 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="gstarted.html">Getting started</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Basic command line parameters</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#session">Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="session.html">Session</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Command line parameters</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#running-an-application">Running an application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#available-applications">Available applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id2">Command line parameters</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#parameter-description">Parameter description</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#adresses-and-ports">Adresses and ports</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#tcp-data-source">TCP data source</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#tcp-data-destination">TCP data destination</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#udp-transfer">UDP transfer</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#timeouts">Timeouts</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#heartbeat-not-implemented">Heartbeat (NOT IMPLEMENTED)</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_file.html">Configuration file</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics</a></li>
-<li class="toctree-l1"><a class="reference internal" href="files.html">Exchanging files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timers.html">Timers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Sample applications to exchanging files</a></li>
 </ul>
 
         </div>
@@ -82,7 +77,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Basic command line parameters</li>
+      <li class="breadcrumb-item active">Command line parameters</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/parameters.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -92,93 +87,80 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="basic-command-line-parameters">
-<span id="command-line-parameters"></span><h1>Basic command line parameters<a class="headerlink" href="#basic-command-line-parameters" title="Link to this heading"></a></h1>
-<p>When running <cite>diode-send</cite> and <cite>diode-receive</cite> with cargo, command line parameters must appear after after double-hyphen separator. For example, to display all available options for the sender part:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send -- --help
+  <section id="command-line-parameters">
+<span id="id1"></span><h1>Command line parameters<a class="headerlink" href="#command-line-parameters" title="Link to this heading"></a></h1>
+<section id="running-an-application">
+<h2>Running an application<a class="headerlink" href="#running-an-application" title="Link to this heading"></a></h2>
+<p>This is a simple <cite>cargo</cite> hands-on.</p>
+<p>To run an application, the following command is used:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin &lt;application&gt;
 </pre></div>
 </div>
-<section id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
-<p>Here is a diagram of the components involved in an example usage of lidi, annotated with command line parameters:</p>
-<p>TO BE UPDATED (command line parameters &amp; ports to be updated)</p>
-<img alt="_images/schema.svg" src="_images/schema.svg" />
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Parameters that are displayed in the gray box must be the same of both sides (sender and receiver) of lidi.</p>
-</div>
-<section id="session">
-<h3>Session<a class="headerlink" href="#session" title="Link to this heading"></a></h3>
-<p>A session is a TCP connection opened on sender side, by an application, in order to send data. A session (the TCP connection) can be used to send any type of data, for instance one or multiple files. The application (not lidi) is responsible of managing a specific protocol to send data and metadata (for instance the content of a file and the filename).
-Lidi only manages session’s start or end. On the receiver side, lidi diode-receive will open and close TCP sessions to a receiver application (like diode-receive-file), in respect of happened on sender side.
-Due to technical constraints, the sender must close the session when data transfer is done. The sender side cannot keep TCP connections opened without sending any data, for instance to reuse it later. Application must open a TCP connection, send data, then close it.
-Lidi receiver will automatically close unused session after some time (see the <a class="reference internal" href="#timeouts"><span class="std std-ref">Timeouts</span></a> chapter for more details on how to configure session’s timeout).</p>
-<p>Following, we provide some details about each command line options.</p>
-</section>
-</section>
-<section id="adresses-and-ports">
-<h2>Adresses and ports<a class="headerlink" href="#adresses-and-ports" title="Link to this heading"></a></h2>
-<p>As shown in the <a class="reference internal" href="gstarted.html#getting-started"><span class="std std-ref">Getting started</span></a> chapter, default values work well for testing the diode on a single machine. But for real application, ip addresses and ports must be configured properly. There are three points in the diode chain where those settings should be provided.</p>
-<section id="tcp-data-source">
-<h3>TCP data source<a class="headerlink" href="#tcp-data-source" title="Link to this heading"></a></h3>
-<p>The diode-send side gets data from TCP connections (for instance, to receive data from diode-send-file). It is necessary to specify IP address and port in which TCP connections will be accepted with the following parameter:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">bind</span><span class="o">-</span><span class="n">tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
+<p>It is possible to build them first, then call an application outside cargo as usual:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo build --release
+$ ./target/release/&lt;application&gt;
 </pre></div>
 </div>
-<p>Default value is 127.0.0.1:5001.</p>
-</section>
-<section id="tcp-data-destination">
-<h3>TCP data destination<a class="headerlink" href="#tcp-data-destination" title="Link to this heading"></a></h3>
-<p>On the diode-receive side, data will be sent to TCP connected client (for instance, to connect to diode-receive-file). To specify listening IP and TCP port:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to</span><span class="o">-</span><span class="n">tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
-</pre></div>
-</div>
-<p>Default value is 127.0.0.1:5002.</p>
-</section>
-<section id="udp-transfer">
-<h3>UDP transfer<a class="headerlink" href="#udp-transfer" title="Link to this heading"></a></h3>
-<p>UDP transfer is used to transfer data from diode-send and diode-receive. Settings IP address and UDP port is necessary. On the sender side:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to</span><span class="o">-</span><span class="n">udp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
-</pre></div>
-</div>
-<p>There is no default value for this, it has to be set to IP of the server running diode-receive.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">bind</span><span class="o">-</span><span class="n">udp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
-</pre></div>
-</div>
-<p>Default value is 0.0.0.0:0.</p>
-<p>On the receiver side, the option:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">bind</span><span class="o">-</span><span class="n">udp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
-</pre></div>
-</div>
-<p>There is no default value for this, it has to be set to the same value than –to-udp (diode-send).</p>
-</section>
-</section>
-<section id="timeouts">
-<span id="id1"></span><h2>Timeouts<a class="headerlink" href="#timeouts" title="Link to this heading"></a></h2>
-<p>Since lidi uses UDP protocol to transfer data, blocks and datagrams have to be reordered at application level.
-Link is unidirectionnal, so there is no way to ask for status or retransmission. Lidi receiver’s side has to make choices depending on what it receives.
-Of course, there are start and end of streams markers, but when packets are missing and arrives in any order, it is difficult to be sure of what happens.</p>
-<p>Thus, there are two configurable timers in lidi diode-receive.
-One is used to decide when to force reassembly of the current block.
-If we miss parts of the current block and no more packet is received during ‘flush-timeout’ delay, we force decoding the current block with data received (this may fail if too many parts are missing).</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">flush</span><span class="o">-</span><span class="n">timeout</span> <span class="o">&lt;</span><span class="n">nb_milliseconds</span><span class="o">&gt;</span>
-  <span class="p">(</span><span class="n">receiver</span> <span class="n">side</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="mi">500</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>The second is used to decide when to force closing a current session transfer.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">session</span><span class="o">-</span><span class="n">expiration</span><span class="o">-</span><span class="n">delay</span> <span class="o">&lt;</span><span class="n">seconds</span><span class="o">&gt;</span>
-  <span class="p">(</span><span class="n">receiver</span> <span class="n">side</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="mi">5</span><span class="p">)</span>
+<p>When running an application with cargo, command line parameters must appear after after double-hyphen separator:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin &lt;application&gt; -- [OPTIONS]
 </pre></div>
 </div>
 </section>
-<section id="heartbeat-not-implemented">
-<h2>Heartbeat (NOT IMPLEMENTED)<a class="headerlink" href="#heartbeat-not-implemented" title="Link to this heading"></a></h2>
-<p>Since the purpose of the diode is to only allow one-way data traffic, the sender cannot be aware if a receiver is set up or not. But heartbeat messages are regularly sent through the diode so that the receiver can be aware of a sender disconnection. Heartbeat times can be set with the following option on both sides:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">heartbeat</span> <span class="o">&lt;</span><span class="n">nb_milliseconds</span><span class="o">&gt;</span>
+<section id="available-applications">
+<h2>Available applications<a class="headerlink" href="#available-applications" title="Link to this heading"></a></h2>
+<p>There are multiple applications provided in Lidi. Each file located in <cite>src/bin/</cite> is a different application.</p>
+<p>The both main applications are :</p>
+<ul class="simple">
+<li><p>diode-send</p></li>
+<li><p>diode-receive</p></li>
+</ul>
+<p>The helper application, which can be used to build a simple diode channel are :</p>
+<ul class="simple">
+<li><p>diode-receive-file</p></li>
+<li><p>diode-send-dir</p></li>
+<li><p>diode-send-file</p></li>
+</ul>
+<p>A metrics application is here to help finding root cause of drops:</p>
+<ul class="simple">
+<li><p>socket_stats</p></li>
+</ul>
+<p>Other applications are available, for testing or benchmarks:</p>
+<ul class="simple">
+<li><p>network-behavior</p></li>
+<li><p>bench-tcp</p></li>
+<li><p>bench_encode_send_parallel</p></li>
+<li><p>diode-flood-test</p></li>
+</ul>
+</section>
+<section id="id2">
+<h2>Command line parameters<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>Both <cite>diode-send</cite> and <cite>diode-receive</cite> applications use the same command line parameters.</p>
+<p>To get the list of available parameters, it is possible to use -h option. For example, to display all available options for the receiver part:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Usage</span><span class="p">:</span> <span class="n">diode</span><span class="o">-</span><span class="n">receive</span> <span class="p">[</span><span class="n">OPTIONS</span><span class="p">]</span>
+
+<span class="n">Options</span><span class="p">:</span>
+  <span class="o">-</span><span class="n">c</span><span class="p">,</span> <span class="o">--</span><span class="n">config</span> <span class="o">&lt;</span><span class="n">CONFIG</span><span class="o">&gt;</span>          <span class="n">Path</span> <span class="n">to</span> <span class="n">configuration</span> <span class="n">file</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="o">/</span><span class="n">etc</span><span class="o">/</span><span class="n">lidi</span><span class="o">/</span><span class="n">config</span><span class="o">.</span><span class="n">toml</span><span class="p">]</span>
+  <span class="o">-</span><span class="n">l</span><span class="p">,</span> <span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">level</span> <span class="o">&lt;</span><span class="n">LOG_LEVEL</span><span class="o">&gt;</span>    <span class="n">Verbosity</span> <span class="n">level</span><span class="p">:</span> <span class="n">info</span><span class="p">,</span> <span class="n">debug</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">error</span> <span class="o">...</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="n">info</span><span class="p">]</span>
+  <span class="o">-</span><span class="n">h</span><span class="p">,</span> <span class="o">--</span><span class="n">help</span>                     <span class="n">Print</span> <span class="n">help</span>
+  <span class="o">-</span><span class="n">V</span><span class="p">,</span> <span class="o">--</span><span class="n">version</span>                  <span class="n">Print</span> <span class="n">version</span>
 </pre></div>
 </div>
-<p>The default value is 100 milliseconds for the sender (i.e. a heartbeat message is sent every 5 seconds) and 200 milliseconds for the receiver (i.e. warnings are displayed whenever during 10 seconds no heartbeat message was received). Due to latency, timeouts and network load, the receiver value must always be greater than the sender value.</p>
-<p>Further heartbeat implementation could be used to allow application to keep his TCP connection active, even it is not used to send data.</p>
+<p>For instance, to start <cite>diode-send</cite> with a different path for the configuration file, one can use:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send -- --config ./lidi.toml
+</pre></div>
+</div>
+<p>or</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send -- -c ./lidi.toml
+</pre></div>
+</div>
+<section id="parameter-description">
+<h3>Parameter description<a class="headerlink" href="#parameter-description" title="Link to this heading"></a></h3>
+<p>Command line options are used to override default parameters, to set a different configuration or log file.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--config</span></code>: use an alternate configuration file than the default <cite>/etc/lidi/config.toml</cite>. See <a class="reference internal" href="configuration_file.html#configuration-file"><span class="std std-ref">Configuration file</span></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--log-level</span></code>: when not using a log4rs configuration file, set the filtering level for logs on console. By default, the level <cite>info</cite> is used. See <a class="reference internal" href="logging.html#logging"><span class="std std-ref">Logging</span></a>.</p></li>
+</ul>
+</section>
 </section>
 </section>
 
@@ -186,8 +168,8 @@ If we miss parts of the current block and no more packet is received during ‘f
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="gstarted.html" class="btn btn-neutral float-left" title="Getting started" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="performance.html" class="btn btn-neutral float-right" title="Performance and fiability parameters" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="session.html" class="btn btn-neutral float-left" title="Session" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="configuration_file.html" class="btn btn-neutral float-right" title="Configuration file" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

@@ -6,17 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Welcome to Lidi’s documentation! &mdash; Lidi 0.8.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=86f27845" />
 
   
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
   
-        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/jquery.js?v=8dae8fb0"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
         <script src="_static/documentation_options.js?v=486e5634"></script>
-        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
@@ -46,11 +43,15 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="gstarted.html">Getting started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="parameters.html">Basic command line parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="session.html">Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_file.html">Configuration file</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics</a></li>
-<li class="toctree-l1"><a class="reference internal" href="files.html">Exchanging files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timers.html">Timers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Sample applications to exchanging files</a></li>
 </ul>
 
         </div>
@@ -84,6 +85,17 @@
 <p>Lidi (leedee) allows you to copy TCP streams (or files) over a unidirectional link.</p>
 <p>It is usually used along with an actual network diode device but it can also be used over regular bidirectional links for testing purposes.</p>
 <p>For more information about the general purpose and concept of unidirectional networks and data diode: <a class="reference external" href="https://en.wikipedia.org/wiki/Unidirectional_network">Wikipedia - Unidirectional network</a>.</p>
+<p>This version is a fork of the original <a class="reference external" href="https://github.com/ANSSI-FR/lidi">lidi project</a>.
+It aims to fix several issues and improve the following topics:</p>
+<ul class="simple">
+<li><p>Support network interrupt and being able to recover from packet loss, introducting a brand new reordering component. This fixes issues <a class="reference external" href="https://github.com/ANSSI-FR/lidi/issues/3">#3</a> and <a class="reference external" href="https://github.com/ANSSI-FR/lidi/issues/4">#4</a>).</p></li>
+<li><p>Add bandwidth limiter at sender side</p></li>
+<li><p>Use a highly configurable <a class="reference external" href="https://docs.rs/log4rs/latest/log4rs/">logging</a> framework and <a class="reference external" href="https://docs.rs/metrics/latest/metrics/">metrics</a> compatible with <a class="reference external" href="https://prometheus.io/">Prometheus</a></p></li>
+<li><p>Validation of the project by adding functional tests using <a class="reference external" href="https://behave.readthedocs.io/en/latest/">behave</a></p></li>
+<li><p>Simplify the global architecture to ease maintenance and improve performance</p></li>
+<li><p>Remove unsafe Rust</p></li>
+<li><p>Update to latest versions of Rust crates</p></li>
+</ul>
 </section>
 <section id="why-lidi">
 <h2>Why lidi?<a class="headerlink" href="#why-lidi" title="Link to this heading"></a></h2>
@@ -92,8 +104,7 @@
 </section>
 <section id="caveat">
 <h2>Caveat<a class="headerlink" href="#caveat" title="Link to this heading"></a></h2>
-<p>If you want to run lidi closer to its intended speed, tuning <a class="reference internal" href="parameters.html#command-line-parameters"><span class="std std-ref">Basic command line parameters</span></a> according to your network configuration is certainly required.
-Read the <a class="reference internal" href="performance.html#tweaking-parameters"><span class="std std-ref">Kernel parameters</span></a> section for details.</p>
+<p>If you want to run lidi close to its intended speed, tuning <a class="reference internal" href="configuration_file.html#configuration-file"><span class="std std-ref">Configuration file</span></a> according to your network configuration is certainly required to add <a class="reference internal" href="performance.html#multithreading"><span class="std std-ref">Multithreading</span></a>.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
@@ -102,33 +113,45 @@ Read the <a class="reference internal" href="performance.html#tweaking-parameter
 <li class="toctree-l2"><a class="reference internal" href="gstarted.html#setting-up-a-simple-case">Setting up a simple case</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="parameters.html">Basic command line parameters</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="parameters.html#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="parameters.html#adresses-and-ports">Adresses and ports</a></li>
-<li class="toctree-l2"><a class="reference internal" href="parameters.html#timeouts">Timeouts</a></li>
-<li class="toctree-l2"><a class="reference internal" href="parameters.html#heartbeat-not-implemented">Heartbeat (NOT IMPLEMENTED)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="session.html">Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#running-an-application">Running an application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#available-applications">Available applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#id2">Command line parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_file.html">Configuration file</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="configuration_file.html#id2">Configuration file sample</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="network.html#adresses-and-ports">Adresses and ports</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="performance.html#packet-sizes">Packet sizes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="performance.html#block-sizes">Block sizes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="performance.html#rate-limiting">Rate limiting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="performance.html#multithreading">Multithreading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance.html#throughput-management">Throughput management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance.html#optimizing-cpu-performances">Optimizing CPU performances</a></li>
 <li class="toctree-l2"><a class="reference internal" href="performance.html#kernel-parameters">Kernel parameters</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="logging.html#log-configuration">Log configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="logging.html#verbosity">Verbosity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="logging.html#relevant-logs">Relevant logs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#levels">Levels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#usual-error-logs-explained">Usual error logs explained</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#prometheus-configuration">Prometheus configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="metrics.html#prometheus-endpoint-configuration">Prometheus endpoint configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html#relevant-metrics">Relevant metrics</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="files.html">Exchanging files with Lidi</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="timers.html">Timers</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="timers.html#heartbeat">Heartbeat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="timers.html#blocks-and-sessions-timeouts">Blocks and sessions timeouts</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Sample applications to exchanging files</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="files.html#sending-files">Sending files</a></li>
 <li class="toctree-l2"><a class="reference internal" href="files.html#receiving-files">Receiving files</a></li>
 </ul>

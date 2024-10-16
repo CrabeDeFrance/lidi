@@ -1,5 +1,5 @@
-Exchanging files with Lidi
-==========================
+Sample applications to exchanging files
+=======================================
 
 There are 3 applications with lidi which are used to test or for a first setup.
 Two of them can be used to send packets, the last one is used to receive packets.
@@ -51,6 +51,7 @@ Receiving files
 """""""""""""""
 
 A single application is used to receive files in any case. It will create files in the provided directory. It will fail if a file with the same name already exists.
+If transfert is imcomplete when TCP session is finised the application will drop the file.
 
 .. code-block::
 
@@ -67,6 +68,4 @@ A single application is used to receive files in any case. It will create files 
            --debug...                   Verbosity level. Using it multiple times adds more logs
            --help                       Print help
            --version                    Print version
-
-TO BE TESTED: what happen if transfer is incomplete ???
 

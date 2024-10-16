@@ -39,28 +39,34 @@ Setting up a simple case
 
 The simplest case we can set up is to have lidi sender and receiver part running on the same machine. Next, we will use `netcat` tool to actually send and receive data over the (software) diode link.
 
+For this example, we will use the configuration file provided in the repository lidi.toml.
+
 In a first terminal, we start by running the sender part of lidi with default parameters:
 
 .. code-block::
 
-   $ cargo run --release --bin diode-send -- --to-udp 127.0.0.1:5000
+   $ cargo run --release --bin diode-send -- -c ./lidi.toml
 
-Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5001 (default port if --bind-tcp is not set) and that the traffic will go through the diode on UDP port 5000.
+Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5001 and that the traffic will go through the diode on UDP port 5000. These port are defined in the configuration file sample lidi.toml.
+
+.. note::
+
+   Application will stop if there are missing parameters or invalid parameters. In this case, an error message will explain what must be fixed to run the application (for instance, the number of ports to use is empty or already in use at startup).
 
 Next, we run the receiving part of lidi, with default parameters too:
 
 .. code-block::
   
-   $ cargo run --release --bin diode-receive -- --bind-udp 127.0.0.1:5000
+   $ cargo run --release --bin diode-receive -- -c ./lidi.toml
 
-This time, logging will indicate that traffic will come up on UDP port 5000 and that transfered content will be served on TCP port 5002 (default port if --to-tcp is not set).
+This time, logging will indicate that traffic will come up on UDP port 5000 and that transfered content will be served on TCP port 5002.
 
 .. note::
 
-   NOT IMPLEMENTED
+   Warning messages may appear during the processing. Most common messages are :
 
-   Warning messages about the receiver not receiving the heartbeat message may appear on the receiving part terminal. For example, this is the case if the receiver part is launched several seconds before the sender part is run.
-   If it is the case, double check that the sender part is still running and that ip addresses and ports for the UDP traffic are the same on the two parts.
+   * the transmission parameters are different between sender and receiver. In this case, configuration files must be sync'd to make this warning disapear.
+   * the receiver is not receiving the heartbeat messages from the sender. For example, this is the case if the receiver part is launched several seconds before the sender part is run. But there may be because the link between sender and receiver is not working properly. If it is the case, double check that the sender part is still running, the link is ready and that ip addresses and ports for the UDP traffic are the same on the two sides.
 
 The diode is now waiting for TCP connections to send and receive data.
 We run a first netcat instance waiting for connection on port 5001 with the following command:
@@ -75,8 +81,8 @@ Finally, we should be able to connect and send raw data through the diode in a f
 
    $ nc 127.0.0.1 5001
    Hello Lidi!
-   <Ctrl-D>
+   <Ctrl-C>
 
 The message should have been transfered with only forwarding UDP traffic, to finally show up in the first waiting netcat terminal window!
 
-Next steps is to review :ref:`Command line parameters` to adapt them to your use case, and eventually :ref:`Tweaking parameters` to achieve optimal transfer performances.
+Next steps is to review the :ref:`configuration_file` to adapt them to your use case, then the :ref:`Command line parameters`, and finally :ref:`Tweaking parameters` to achieve optimal transfer performances.
