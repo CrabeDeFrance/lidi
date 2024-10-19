@@ -77,7 +77,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     // accept our new client
     let (client, _sockaddr) = tcp_listener.accept().unwrap();
-    let mut tcp = tcp::Tcp::new(client, real_data_size as _, 0, None);
+    let mut tcp = tcp::Tcp::new(client, real_data_size as _, 0);
     if let Err(e) = tcp.configure() {
         log::warn!("client: error: {e}");
     }
