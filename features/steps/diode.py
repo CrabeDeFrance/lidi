@@ -55,6 +55,9 @@ heartbeat = 500
 # TCP server socket to accept data
 bind_tcp = "127.0.0.1:5000"
 
+# UDP source address to use
+bind_udp = "127.0.0.1:0"
+
 # ratelimit TCP session speed (in Mbit/s)
 {max_bandwidth}
 
