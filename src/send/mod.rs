@@ -138,7 +138,7 @@ impl TryFrom<DiodeConfig> for SenderConfig {
                     encoding_block_size: config.encoding_block_size,
                     repair_block_size: config.repair_block_size,
                     hearbeat_interval: Duration::from_millis(config.heartbeat as _),
-                    bind_udp: SocketAddr::from_str("127.0.0.1:0").map_err(|e| {
+                    bind_udp: SocketAddr::from_str(&config_sender.bind_udp).map_err(|e| {
                         std::io::Error::new(
                             ErrorKind::InvalidData,
                             format!("cannot parse bind_udp address: {e}"),
@@ -358,7 +358,7 @@ impl SenderConfig {
                 .name(format!("lidi_tx_udp_{i}"))
                 .spawn(move || {
                     log::info!(
-                        "sending UDP traffic to {} with MTU {} (binded to {})",
+                        "sending UDP traffic to {} with MTU {} (bound to {})",
                         to_udp,
                         to_udp_mtu,
                         bind_udp

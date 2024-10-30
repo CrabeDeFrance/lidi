@@ -29,6 +29,8 @@ pub struct DiodeConfig {
 pub struct DiodeSenderConfig {
     /// TCP server socket to accept data
     pub bind_tcp: String,
+    /// UDP socket src address to send data (format A.B.C.D or A.B.C.D:P)
+    pub bind_udp: String,
     /// ratelimit TCP session speed (in Mbit/s)
     pub max_bandwidth: Option<f64>,
     /// prometheus port (sender)
