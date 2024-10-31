@@ -114,6 +114,9 @@
 <span class="c1"># TCP server socket to accept data</span>
 <span class="n">bind_tcp</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1:5001&quot;</span>
 
+<span class="c1"># UDP source address to use for client socket in format A.B.C.D:port. It is possible to use port 0 for automatic assignement.</span>
+<span class="n">bind_udp</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1:0&quot;</span>
+
 <span class="c1"># ratelimit Lidi output (UDP packets throughput). In Mbit/s.</span>
 <span class="n">max_bandwidth</span> <span class="o">=</span> <span class="mi">100</span>
 

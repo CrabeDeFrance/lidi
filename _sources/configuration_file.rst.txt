@@ -52,6 +52,9 @@ Here is a sample of the configuration file :
    # TCP server socket to accept data
    bind_tcp = "127.0.0.1:5001"
    
+   # UDP source address to use for client socket in format A.B.C.D:port. It is possible to use port 0 for automatic assignement.
+   bind_udp = "127.0.0.1:0"
+   
    # ratelimit Lidi output (UDP packets throughput). In Mbit/s.
    max_bandwidth = 100
    
