@@ -5,7 +5,9 @@ import subprocess
 import time
 import os
 import hashlib
-from diode import stop_diode_send, start_diode_send, stop_diode_receive, start_diode_receive
+import shutil
+from tempfile import TemporaryDirectory
+from diode import stop_diode_send, start_diode, start_diode_send, start_diode_send_dir, stop_diode_receive, start_diode_receive
 
 use_step_matcher("cfparse")
 
@@ -33,6 +35,9 @@ def create_file(context, filename, count, blocksize):
     )
     assert proc.returncode == 0
 
+    # store info in context
+    store_file_info(context, filename)
+
 def store_file_info(context, filename):
 
     # store info about the generated file in context
@@ -53,7 +58,6 @@ def send_file(context, name, count, blocksize, background=False):
 
     filename = os.path.join(context.send_dir.name, name)
     create_file(context, filename, count, blocksize)
-    store_file_info(context, filename)
 
     # take care of possible throttled fs to limit tx throughput
     if context.send_ratelimit_dir:
@@ -91,14 +95,14 @@ def send_multiple_files(context):
     assert result.returncode == 0
 
 
-def receive_file(context, name, seconds):
+def test_file(context, dir, name, seconds):
     # get info about the file
     info = context.files[name]
     size = info['size']
     h = info['hash']
 
     # where it should be
-    filename = os.path.join(context.receive_dir.name, name)
+    filename = os.path.join(dir, name)
 
     # wait for it
     seconds = int(seconds)
@@ -124,6 +128,39 @@ def receive_file(context, name, seconds):
 
     # loop stops before receiving file
     raise Exception('File not received')
+
+def test_no_file(context, dir, name, seconds):
+    # get info about the file
+    info = context.files[name]
+    size = info['size']
+    h = info['hash']
+
+    # where it should be
+    filename = os.path.join(dir, name)
+
+    # wait for it
+    seconds = int(seconds)
+
+    for _ in range(seconds * 1000):
+        try:
+            stat = os.stat(filename)
+            if stat.st_size != size:
+                # file incomplete, wait for more data
+                time.sleep(0.001)
+                continue
+        except Exception:
+            # file not found, wait
+            time.sleep(0.001)
+            continue
+
+        # file received, check content
+        assert md5sum(filename) == h
+
+        # ok => delete and quit
+        os.unlink(filename)
+        raise Exception('File received')
+
+    # loop stops before receiving file
 
 @when('diode-file-send file {name} of size {size}')
 def step_impl(context, name, size):
@@ -170,11 +207,11 @@ def step_impl(context, name, size):
 
 @then('diode-file-receive file {name} in {seconds} seconds')
 def step_impl(context, name, seconds):
-    receive_file(context, name, seconds)
+    test_file(context, context.receive_dir.name, name, seconds)
 
 @when('diode-file-receive file {name} in {seconds} seconds')
 def step_impl(context, name, seconds):
-    receive_file(context, name, seconds)
+    test_file(context, context.receive_dir.name, name, seconds)
 
 
 @when('diode-file-send {files} files of size {size}')
@@ -189,8 +226,6 @@ def step_impl(context, files, size):
     for i in range(int(files)):
         name = str(f"test_file_{i}")
         create_file(context, name, count, blocksize)
-        # store info in context
-        store_file_info(context, name)
 
     # now send all of them at once
     send_multiple_files(context)
@@ -198,5 +233,55 @@ def step_impl(context, files, size):
 @then('diode-file-receive {files} files in {seconds} seconds')
 def step_impl(context, files, seconds):
     for name in context.files:
-        receive_file(context, name, seconds)
+        test_file(context, context.receive_dir.name, name, seconds)
+
+# diode-send-dir steps
+
+@given(u'diode with send-dir is started')
+def step_impl(context):
+    start_diode(context)
+    start_diode_send_dir(context)
+
+@when(u'we copy a file {name} of size {size}')
+def step_impl(context, name, size):
+    # extract size & unit
+    count = size[0:-2]
+    blocksize = size[-2:]
+
+    if blocksize not in ['KB', 'MB', 'GB']:
+        raise Exception("Unknown unit")
+
+    temp_dir = TemporaryDirectory(dir=context.base_dir)
+
+    filename = os.path.join(temp_dir.name, name)
+    create_file(context, filename, count, blocksize)
+    shutil.copy(filename, context.send_dir.name)
+
+    temp_dir.cleanup()
+
+@when(u'we move a file {name} of size {size}')
+def step_impl(context, name, size):
+    # extract size & unit
+    count = size[0:-2]
+    blocksize = size[-2:]
+
+    if blocksize not in ['KB', 'MB', 'GB']:
+        raise Exception("Unknown unit")
+
+    temp_dir = TemporaryDirectory(dir=context.base_dir)
+
+    filename = os.path.join(temp_dir.name, name)
+    create_file(context, filename, count, blocksize)
+    destname = os.path.join(context.send_dir.name, name)
+    os.rename(filename, destname)
+
+    temp_dir.cleanup()
+
+@then('diode-file-receive no file {name} in {seconds} seconds')
+def step_impl(context, name, seconds):
+    test_no_file(context, context.receive_dir.name, name, seconds)
+
+@then(u'file {name} is in source directory')
+def step_impl(context, name):
+    test_file(context, context.send_dir.name, name, 1)
 

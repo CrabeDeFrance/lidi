@@ -27,6 +27,7 @@ affinity = "0.1"
 serde = "1"
 toml = "0.8"
 core_affinity = "0.8"
+regex = "1"
 
 [dev-dependencies]
 criterion = "0.5"
