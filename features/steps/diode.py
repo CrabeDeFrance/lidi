@@ -199,6 +199,22 @@ def start_throttled_diode(context, read_rate):
 
     start_diode(context)
 
+def start_diode_send_dir(context):
+    if context.quiet:
+        stdout = subprocess.DEVNULL
+        stderr = subprocess.DEVNULL
+    else:
+        stdout = subprocess.PIPE
+        stderr = subprocess.STDOUT
+
+    diode_send_dir_command = [f'{context.bin_dir}/diode-send-dir', '--maximum-files', '1', '--to-tcp', '127.0.0.1:5000', context.send_dir.name]
+
+    context.proc_diode_send_dir = subprocess.Popen(
+        diode_send_dir_command,
+        stdout=stdout, stderr=stderr)
+
+    time.sleep(1)
+
 @given('diode is started')
 def step_impl(context):
     start_diode(context)

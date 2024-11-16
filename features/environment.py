@@ -23,15 +23,18 @@ def before_all(context):
     proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-send-file'])
     proc.communicate()
 
+    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-send-dir'])
+    proc.communicate()
+
 
 # function called before every test : initialize context with default values
 def before_scenario(context, _feature):
     # test temp dir
-    dev_shm="/dev/shm"
-    context.send_dir = TemporaryDirectory(dir=dev_shm)
+    context.base_dir="/dev/shm"
+    context.send_dir = TemporaryDirectory(dir=context.base_dir)
     context.send_ratelimit_dir = None
-    context.receive_dir = TemporaryDirectory(dir=dev_shm)
-    context.log_dir = TemporaryDirectory(dir=dev_shm)
+    context.receive_dir = TemporaryDirectory(dir=context.base_dir)
+    context.log_dir = TemporaryDirectory(dir=context.base_dir)
 
     # files metadata
     context.files = {}
@@ -39,6 +42,7 @@ def before_scenario(context, _feature):
     # process instances
     context.proc_diode_receive = None
     context.proc_diode_send = None
+    context.proc_diode_send_dir = None
     context.proc_network = None
     context.proc_diode_receive_file = None
     context.proc_throttled_fs = None
@@ -63,8 +67,8 @@ def before_scenario(context, _feature):
     context.bin_dir = "./target/release/"
 
     #setup_log_config(context, context.log_dir.name)
-    setup_log_config(context, "/dev/shm")
-    context.lidi_config_path = "/dev/shm"
+    setup_log_config(context, context.base_dir)
+    context.lidi_config_path = context.base_dir
 
     context.block_size = None
     context.repair_block = None
@@ -77,6 +81,8 @@ def after_scenario(context, _feature):
         context.proc_diode_receive.kill()
     if context.proc_diode_send:
         context.proc_diode_send.kill()
+    if context.proc_diode_send_dir:
+        context.proc_diode_send_dir.kill()
     if context.proc_network:
         context.proc_network.kill()
     if context.proc_diode_receive_file:
