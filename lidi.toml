@@ -24,6 +24,9 @@ heartbeat = 1000
 # TCP server socket to accept data
 bind_tcp = "127.0.0.1:5001"
 
+# IP address and port of the TCP server
+bind_udp = "127.0.0.1:0"
+
 # ratelimit TCP session speed (in bit/s).
 max_bandwidth = 10000000
 
