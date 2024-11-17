@@ -35,17 +35,20 @@ Another application is here to watch for changes in a given directory and send f
 .. code-block::
 
    Usage: diode-send-dir [OPTIONS] <DIR>
+
+   Arguments:
+     <DIR>  Directory containing files to send
    
-   Options:
-         --to-tcp <TO_TCP>                IP address and port to connect in TCP to diode-send (ex "127.0.0.1:5001") [default: 127.0.0.1:5001]
-         --buffer-size <BUFFER_SIZE>      Size of file buffer [default: 8196]
-         --hash                           Compute a hash of file content (default is false)
-         --dir <DIR>                      Directory containing files to send
-         --maximum-files <MAXIMUM_FILES>  maximum number of files to send per session
-         --log-config <LOG_CONFIG>        Path to log configuration file
-         --debug...                       Verbosity level. Using it multiple times adds more logs
-         --help                           Print help
-         --version                        Print version
+     Options:
+           --to-tcp <TO_TCP>                IP address and port to connect in TCP to diode-send (ex "127.0.0.1:5001") [default: 127.0.0.1:5001]
+           --buffer-size <BUFFER_SIZE>      Size of file buffer [default: 8196]
+           --hash                           Compute a hash of file content (default is false)
+           --ignore <IGNORE>                Pattern of filenames to ignore [default: ^\..*$]
+           --maximum-files <MAXIMUM_FILES>  maximum number of files to send per session
+           --log-config <LOG_CONFIG>        Path to log configuration file
+           --log-level <LOG_LEVEL>          Verbosity level: info, debug, warning, error ... [default: info]
+           -h, --help                       Print help
+           -V, --version                    Print version
 
 Receiving files
 """""""""""""""
