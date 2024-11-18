@@ -101,18 +101,21 @@ Files on receiver side will be recreated with their original name and their unix
 </pre></div>
 </div>
 <p>Another application is here to watch for changes in a given directory and send files them as they come : diode-send-dir</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Usage</span><span class="p">:</span> <span class="n">diode</span><span class="o">-</span><span class="n">send</span><span class="o">-</span><span class="nb">dir</span> <span class="p">[</span><span class="n">OPTIONS</span><span class="p">]</span> <span class="o">&lt;</span><span class="n">DIR</span><span class="o">&gt;</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Usage: diode-send-dir [OPTIONS] &lt;DIR&gt;
 
-<span class="n">Options</span><span class="p">:</span>
-      <span class="o">--</span><span class="n">to</span><span class="o">-</span><span class="n">tcp</span> <span class="o">&lt;</span><span class="n">TO_TCP</span><span class="o">&gt;</span>                <span class="n">IP</span> <span class="n">address</span> <span class="ow">and</span> <span class="n">port</span> <span class="n">to</span> <span class="n">connect</span> <span class="ow">in</span> <span class="n">TCP</span> <span class="n">to</span> <span class="n">diode</span><span class="o">-</span><span class="n">send</span> <span class="p">(</span><span class="n">ex</span> <span class="s2">&quot;127.0.0.1:5001&quot;</span><span class="p">)</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">5001</span><span class="p">]</span>
-      <span class="o">--</span><span class="n">buffer</span><span class="o">-</span><span class="n">size</span> <span class="o">&lt;</span><span class="n">BUFFER_SIZE</span><span class="o">&gt;</span>      <span class="n">Size</span> <span class="n">of</span> <span class="n">file</span> <span class="n">buffer</span> <span class="p">[</span><span class="n">default</span><span class="p">:</span> <span class="mi">8196</span><span class="p">]</span>
-      <span class="o">--</span><span class="nb">hash</span>                           <span class="n">Compute</span> <span class="n">a</span> <span class="nb">hash</span> <span class="n">of</span> <span class="n">file</span> <span class="n">content</span> <span class="p">(</span><span class="n">default</span> <span class="ow">is</span> <span class="n">false</span><span class="p">)</span>
-      <span class="o">--</span><span class="nb">dir</span> <span class="o">&lt;</span><span class="n">DIR</span><span class="o">&gt;</span>                      <span class="n">Directory</span> <span class="n">containing</span> <span class="n">files</span> <span class="n">to</span> <span class="n">send</span>
-      <span class="o">--</span><span class="n">maximum</span><span class="o">-</span><span class="n">files</span> <span class="o">&lt;</span><span class="n">MAXIMUM_FILES</span><span class="o">&gt;</span>  <span class="n">maximum</span> <span class="n">number</span> <span class="n">of</span> <span class="n">files</span> <span class="n">to</span> <span class="n">send</span> <span class="n">per</span> <span class="n">session</span>
-      <span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">config</span> <span class="o">&lt;</span><span class="n">LOG_CONFIG</span><span class="o">&gt;</span>        <span class="n">Path</span> <span class="n">to</span> <span class="n">log</span> <span class="n">configuration</span> <span class="n">file</span>
-      <span class="o">--</span><span class="n">debug</span><span class="o">...</span>                       <span class="n">Verbosity</span> <span class="n">level</span><span class="o">.</span> <span class="n">Using</span> <span class="n">it</span> <span class="n">multiple</span> <span class="n">times</span> <span class="n">adds</span> <span class="n">more</span> <span class="n">logs</span>
-      <span class="o">--</span><span class="n">help</span>                           <span class="n">Print</span> <span class="n">help</span>
-      <span class="o">--</span><span class="n">version</span>                        <span class="n">Print</span> <span class="n">version</span>
+Arguments:
+  &lt;DIR&gt;  Directory containing files to send
+
+  Options:
+        --to-tcp &lt;TO_TCP&gt;                IP address and port to connect in TCP to diode-send (ex &quot;127.0.0.1:5001&quot;) [default: 127.0.0.1:5001]
+        --buffer-size &lt;BUFFER_SIZE&gt;      Size of file buffer [default: 8196]
+        --hash                           Compute a hash of file content (default is false)
+        --ignore &lt;IGNORE&gt;                Pattern of filenames to ignore [default: ^\..*$]
+        --maximum-files &lt;MAXIMUM_FILES&gt;  maximum number of files to send per session
+        --log-config &lt;LOG_CONFIG&gt;        Path to log configuration file
+        --log-level &lt;LOG_LEVEL&gt;          Verbosity level: info, debug, warning, error ... [default: info]
+        -h, --help                       Print help
+        -V, --version                    Print version
 </pre></div>
 </div>
 </section>
