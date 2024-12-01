@@ -4,17 +4,19 @@ use diode::{
 };
 use inotify::{Inotify, WatchMask};
 use std::{
+    collections::{BTreeMap, VecDeque},
     net::{self, TcpStream},
-    path::PathBuf,
     str::FromStr,
-    time::Duration,
+    sync::mpsc::Sender,
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
 use regex::Regex;
 
 use clap::Parser;
+use std::sync::mpsc::channel;
 
-#[derive(Parser, Debug)]
+#[derive(Clone, Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct SendFileConfig {
     /// IP address and port to connect in TCP to diode-send (ex "127.0.0.1:5001")
@@ -35,6 +37,9 @@ struct SendFileConfig {
     /// maximum number of files to send per session
     #[arg(long)]
     maximum_files: Option<usize>,
+    /// maximum delay (in milliseconds) before reconnecting the current session
+    #[arg(long)]
+    maximum_delay: Option<usize>,
     /// Path to log configuration file
     #[arg(long)]
     log_config: Option<String>,
@@ -43,37 +48,155 @@ struct SendFileConfig {
     pub log_level: String,
 }
 
-fn on_file(
-    config: &file::Config,
-    diode: &mut TcpStream,
-    dir: &str,
-    filename: &str,
-    ignore_re: &Regex,
-    maximum_files: Option<usize>,
-    count: &mut usize,
-) -> Result<bool, file::Error> {
-    let mut last_file = false;
-    // skip file names matching "ignore" option
-    if ignore_re.is_match(filename) {
-        return Ok(false);
-    }
+// used to watch input directory and wake up polling process
+fn watch_files(inotify: &mut Inotify, dir: &str, ignore_file: &str, inotify_tx: Sender<()>) {
+    // Read events that were added with `Watches::add` above.
+    let mut buffer = [0; 8096];
 
-    if let Some(maximum_files) = maximum_files {
-        *count += 1;
-        if *count >= maximum_files {
-            // quit this loop to force a reconnect
-            last_file = true;
+    let ignore_re = Regex::new(ignore_file).unwrap();
+
+    let mut now = Instant::now();
+
+    // Watch for modify and close events.
+    inotify
+        .watches()
+        .add(dir, WatchMask::CLOSE_WRITE | WatchMask::MOVED_TO)
+        .expect("Failed to add file watch");
+
+    loop {
+        let events = inotify
+            .read_events_blocking(&mut buffer)
+            .expect("Error while reading events");
+
+        for event in events {
+            log::debug!("new event {event:?}");
+
+            // Handle event
+            if let Some(filename) = event.name {
+                let filename = filename.to_string_lossy();
+                // skip file names matching "ignore" option
+                if ignore_re.is_match(&filename) {
+                    continue;
+                }
+
+                // ratelimit wakeup calls to one every 50 ms
+                if now.elapsed() > Duration::from_millis(50) {
+                    now = Instant::now();
+                    // send a message to immediatly wakeup send thread
+                    if let Err(e) = inotify_tx.send(()) {
+                        log::warn!("Unable to send event in channel: {e}");
+                    }
+                }
+            }
+        }
+    }
+}
+
+// return a list of files in directory, ordered by modified date (from oldest to newest)
+fn list_dir(dir: &str, ignore_file: &str) -> VecDeque<String> {
+    // btreemap to help to order files by date
+    let mut ordered_files: BTreeMap<u128, Vec<String>> = BTreeMap::new();
+    // vec order from oldest to newest
+    let mut ret = VecDeque::new();
+    let ignore_re = Regex::new(ignore_file).unwrap();
+
+    let paths =
+        std::fs::read_dir(dir).unwrap_or_else(|e| panic!("can't open directory {dir} : {e}"));
+
+    for path in paths.flatten() {
+        let filename = path.file_name();
+        let filename = match filename.to_str() {
+            Some(s) => s,
+            None => {
+                log::warn!("Cant convert filename {filename:?} to string");
+                continue;
+            }
+        };
+
+        // skip file names matching "ignore" option
+        if ignore_re.is_match(filename) {
+            continue;
+        }
+
+        log::debug!("new file: {}", filename);
+
+        // insert files, automatically ordered by key (date)
+        match std::fs::metadata(path.path()) {
+            Ok(metadata) => match metadata.modified() {
+                Ok(t) => match t.duration_since(UNIX_EPOCH) {
+                    Ok(d) => {
+                        let filename = path.path().to_string_lossy().to_string();
+                        let raw = d.as_nanos();
+                        if let Some(row) = ordered_files.get_mut(&raw) {
+                            row.push(filename);
+                        } else {
+                            ordered_files.insert(raw, vec![filename]);
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Can't get time duration for file {filename}: {e}");
+                        continue;
+                    }
+                },
+                Err(e) => {
+                    log::warn!("Can't get modified time for file {filename}: {e}");
+                    continue;
+                }
+            },
+            Err(e) => {
+                log::warn!("Can't get metadata for file {filename}: {e}");
+                continue;
+            }
         }
     }
 
-    let mut path = PathBuf::from(dir);
-    path.push(filename);
-    match send_file(
-        config,
-        diode,
-        path.to_str().expect("Cannot convert path to string"),
-        last_file,
-    ) {
+    // Gets an owning iterator over the entries of the map, sorted by key.
+    ordered_files.into_iter().for_each(|(_date, files)| {
+        files.into_iter().for_each(|file| {
+            ret.push_back(file);
+        });
+    });
+
+    ret
+}
+
+// send a list of list, until limit is reached. return true if limit is reached
+fn send_file_list(
+    config: &file::Config,
+    limits: &mut Limits,
+    diode: &mut TcpStream,
+    files: &mut VecDeque<String>,
+) -> bool {
+    while let Some(filename) = files.pop_front() {
+        limits.add_file();
+        match send_one_file(config, diode, &filename, limits) {
+            Ok(reconnect) => {
+                if reconnect {
+                    return true;
+                }
+            }
+            Err(e) => log::warn!("Can't send file {filename}: {e}"),
+        }
+    }
+
+    false
+}
+
+// send one file, return true if limit is reached and this is the last file for this connection
+fn send_one_file(
+    config: &file::Config,
+    diode: &mut TcpStream,
+    filename: &str,
+    limits: &Limits,
+) -> Result<bool, file::Error> {
+    let mut last_file = false;
+
+    if limits.reached() {
+        // quit this loop to force a reconnect
+        last_file = true;
+    }
+
+    match send_file(config, diode, filename, last_file) {
         Ok(total) => {
             log::info!("{filename} sent, {total} bytes");
         }
@@ -83,175 +206,76 @@ fn on_file(
         }
     }
 
-    if let Err(e) = std::fs::remove_file(path) {
+    if let Err(e) = std::fs::remove_file(filename) {
         log::warn!("Unable to delete {filename}: {e}");
     }
 
     Ok(last_file)
 }
 
-fn send_with_retry(
-    config: &file::Config,
-    diode: &mut TcpStream,
-    dir: &str,
-    filename: &str,
-    ignore_re: &Regex,
+// limit system, used to reconnect after a given number of file or when time is elasped
+struct Limits {
     maximum_files: Option<usize>,
-    count: &mut usize,
-) -> bool {
-    let mut retry_counter = 3;
-    while retry_counter > 0 {
-        match on_file(
-            config,
-            diode,
-            dir,
-            filename,
-            ignore_re,
+    files_count: usize,
+    maximum_delay: Option<Duration>,
+    now: Instant,
+}
+
+impl Limits {
+    fn new(maximum_files: Option<usize>, maximum_delay: Option<Duration>) -> Self {
+        Self {
+            maximum_delay,
             maximum_files,
-            count,
-        ) {
-            Ok(last_file) => return last_file,
-            Err(_) => {
-                retry_counter -= 1;
-                continue;
-            }
+            files_count: 0,
+            now: Instant::now(),
         }
     }
 
-    log::warn!("Can't send file {filename}: file lost");
+    fn add_file(&mut self) {
+        self.files_count += 1;
+    }
 
-    false
+    fn reset(&mut self) {
+        self.files_count = 0;
+        self.now = Instant::now();
+    }
+
+    fn reached(&self) -> bool {
+        // no files sent, no limit reached
+        if self.files_count == 0 {
+            return false;
+        }
+
+        // test file limit
+        if let Some(max) = self.maximum_files {
+            if self.files_count >= max {
+                return true;
+            }
+        }
+
+        // test delay limit
+        if let Some(max) = self.maximum_delay {
+            if self.now.elapsed() >= max {
+                return true;
+            }
+        }
+
+        false
+    }
 }
 
-fn watch_files(
-    config: &file::Config,
-    inotify: &mut Inotify,
-    ignore_file: &str,
-    dir: &str,
-    maximum_files: Option<usize>,
-) -> Option<String> {
-    let mut count = 0;
-
+// connect to diode-send, without error (inifinte loop until it connects)
+fn connect(config: &file::Config) -> TcpStream {
     log::info!("connecting to {}", config.diode);
-    let mut diode = loop {
+    loop {
         match net::TcpStream::connect(config.diode) {
-            Ok(diode) => break diode,
+            Ok(diode) => return diode,
             Err(e) => {
                 log::warn!("Can't connect to diode: {e}");
                 std::thread::sleep(Duration::from_secs(1));
             }
         }
-    };
-
-    // Read events that were added with `Watches::add` above.
-    let mut buffer = [0; 1024];
-
-    let ignore_re = Regex::new(ignore_file).unwrap();
-
-    loop {
-        // ça marche pas ça
-        let events = inotify
-            .read_events_blocking(&mut buffer)
-            .expect("Error while reading events");
-
-        for event in events {
-            log::debug!("new event {event:?}");
-
-            // Handle event
-            if let Some(osstr) = event.name {
-                let filename = osstr.to_string_lossy().to_string();
-                match on_file(
-                    config,
-                    &mut diode,
-                    dir,
-                    &filename,
-                    &ignore_re,
-                    maximum_files,
-                    &mut count,
-                ) {
-                    Ok(last_file) => {
-                        if last_file {
-                            return None;
-                        }
-                    }
-                    Err(e) => {
-                        log::info!("Can't send file {filename}: {e}: retry");
-                        let mut path = PathBuf::from(dir);
-                        path.push(&filename);
-                        return Some(path.to_string_lossy().to_string());
-                    }
-                }
-            }
-        }
     }
-}
-
-fn check_dir(config: &file::Config, ignore_file: &str, dir: &str) {
-    let ignore_re = Regex::new(ignore_file).unwrap();
-
-    let paths =
-        std::fs::read_dir(dir).unwrap_or_else(|e| panic!("can't open directory {dir} : {e}"));
-
-    for path in paths.flatten() {
-        log::info!("connecting to {}", config.diode);
-        let mut diode = loop {
-            match net::TcpStream::connect(config.diode) {
-                Ok(diode) => break diode,
-                Err(e) => {
-                    log::warn!("Can't connect to diode: {e}");
-                    std::thread::sleep(Duration::from_secs(1));
-                }
-            }
-        };
-
-        let filename = path.file_name();
-        let filename = filename.to_str().expect("can't convert to string");
-
-        log::debug!("new file: {}", filename);
-
-        let mut unused = 0;
-        send_with_retry(
-            config,
-            &mut diode,
-            dir,
-            filename,
-            &ignore_re,
-            None,
-            &mut unused,
-        );
-    }
-}
-
-fn send_retry(config: &file::Config, filename: String) {
-    let mut retry_count = 3;
-    while retry_count > 0 {
-        log::info!("connecting to {}", config.diode);
-        let mut diode = loop {
-            match net::TcpStream::connect(config.diode) {
-                Ok(diode) => break diode,
-                Err(e) => {
-                    log::warn!("Can't connect to diode: {e}");
-                    std::thread::sleep(Duration::from_secs(1));
-                }
-            }
-        };
-        match send_file(config, &mut diode, &filename, true) {
-            Ok(total) => {
-                log::info!("{filename} sent, {total} bytes");
-                if let Err(e) = std::fs::remove_file(&filename) {
-                    log::warn!("Unable to delete {filename}: {e}");
-                }
-                return;
-            }
-            Err(e) => {
-                log::warn!("Unable to send {filename}: {e}");
-                retry_count -= 1;
-                continue;
-            }
-        }
-    }
-
-    log::warn!("Unable to send file {filename}. File kept on disk.");
 }
 
 fn main() {
@@ -273,31 +297,66 @@ fn main() {
         hash,
     };
 
-    let mut inotify = Inotify::init().expect("Error while initializing inotify instance");
+    let (inotify_tx, inotify_rx) = channel();
 
-    // Watch for modify and close events.
-    inotify
-        .watches()
-        .add(
-            args.dir.as_str(),
-            WatchMask::CLOSE_WRITE | WatchMask::MOVED_TO,
-        )
-        .expect("Failed to add file watch");
+    let args_in_inotify = args.clone();
 
-    // send files already there
-    check_dir(&config, args.ignore.as_str(), args.dir.as_str());
+    // inotify thread, used to wake up main loop, see bellow.
+    // Since inotify is not a reliable feature, an application must be able to work even is inotify has
+    // issues (not available on the system, inotify queue overflow, race conditions...). So here we use
+    // it only to wake up quckily the main loop and look for new files to send.
+    //
+    // man 7 inotify :
+    //   With careful programming, an application can use inotify to efficiently monitor and cache the state
+    //   of a set of filesystem objects. However, robust applications should allow for the fact that bugs
+    //   in the monitoring logic or races of the kind described below may leave the cache inconsistent
+    //   with the filesystem state. It is probably wise to do some consistency checking, and rebuild the cache
+    //   when inconsistencies are detected.
+    let _inotify_thread = std::thread::Builder::new()
+        .name("lidi_send_dir_inotify".to_string())
+        .spawn(move || {
+            let mut inotify = Inotify::init().expect("Error while initializing inotify instance");
+            let args = args_in_inotify;
 
-    // send new files coming
+            watch_files(
+                &mut inotify,
+                args.dir.as_str(),
+                args.ignore.as_str(),
+                inotify_tx,
+            );
+        })
+        .expect("Cannot start inotify thread");
+
+    let one_sec = std::time::Duration::from_secs(1);
+
+    let mut limits = Limits::new(
+        args.maximum_files,
+        args.maximum_delay.map(|d| Duration::from_millis(d as _)),
+    );
+
+    let mut diode = connect(&config);
+
+    // main loop to send file, works even if there is no inotify
     loop {
-        if let Some(filename) = watch_files(
-            &config,
-            &mut inotify,
-            args.ignore.as_str(),
-            args.dir.as_str(),
-            args.maximum_files,
-        ) {
-            // try to send it again
-            send_retry(&config, filename);
+        if let Err(e) = inotify_rx.recv_timeout(one_sec) {
+            // We go here when there is a timeout. No issue at all, we will simply call list_dir
+            log::debug!("recv_timeout: {e}");
+        }
+
+        // check delay limits if there are pending files
+        if limits.reached() {
+            diode = connect(&config);
+            limits.reset();
+        }
+
+        // send new files in the directory
+        let mut files = list_dir(args.dir.as_str(), args.ignore.as_str());
+
+        while !files.is_empty() {
+            if send_file_list(&config, &mut limits, &mut diode, &mut files) {
+                diode = connect(&config);
+                limits.reset();
+            }
         }
     }
 }
