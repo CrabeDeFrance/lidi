@@ -6,15 +6,15 @@ Feature: Send simple small files at the same time
   Scenario: Send 10x1K file without drop
     Given diode is started
     When diode-file-send 10 files of size 1KB
-    Then diode-file-receive 10 files in 5 seconds
+    Then diode-file-receive all files in 5 seconds
 
   Scenario: Send 10x10K file without drop
     Given diode is started with max throughput of 100 Mb/s
     When diode-file-send 10 files of size 10KB
-    Then diode-file-receive 10 files in 5 seconds
+    Then diode-file-receive all files in 5 seconds
 
   Scenario: Send 10x100K file without drop
     Given diode is started with max throughput of 100 Mb/s
     When diode-file-send 10 files of size 100KB
-    Then diode-file-receive 10 files in 5 seconds
+    Then diode-file-receive all files in 5 seconds
 

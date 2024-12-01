@@ -63,15 +63,18 @@ def before_scenario(context, _feature):
     context.log_config_diode_receive = None
     context.log_config_diode_receive_file = None
     context.log_config_diode_send = None
+    context.log_config_diode_send_dir = None
 
     context.bin_dir = "./target/release/"
 
-    #setup_log_config(context, context.log_dir.name)
     setup_log_config(context, context.base_dir)
     context.lidi_config_path = context.base_dir
 
     context.block_size = None
     context.repair_block = None
+
+    # simple counter that can be used between steps
+    context.counter = 0
 
 
 # function called after every test : cleanup (delete temp directories & kill processes)
@@ -113,7 +116,7 @@ root:
     - file
 """
 
-def setup_log_config(context, log_dir, level="trace"):
+def setup_log_config(context, log_dir, level="debug"):
     context.log_config_diode_receive = os.path.join(log_dir, "log_config_diode_receive.yml")
     filename = os.path.join(log_dir, "diode_receive.log")
     with open(context.log_config_diode_receive, "w") as f:
@@ -123,6 +126,12 @@ def setup_log_config(context, log_dir, level="trace"):
     context.log_config_diode_send = os.path.join(log_dir, "log_config_diode_send.yml")
     filename = os.path.join(log_dir, "diode_send.log")
     with open(context.log_config_diode_send, "w") as f:
+        f.write(build_log_config(filename, level))
+        f.close()
+
+    context.log_config_diode_send_dir = os.path.join(log_dir, "log_config_diode_send_dir.yml")
+    filename = os.path.join(log_dir, "diode_send_dir.log")
+    with open(context.log_config_diode_send_dir, "w") as f:
         f.write(build_log_config(filename, level))
         f.close()
 
