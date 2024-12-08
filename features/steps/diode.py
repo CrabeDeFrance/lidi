@@ -150,7 +150,8 @@ def start_diode(context):
         stderr = subprocess.STDOUT
 
     network_behavior = False
-    network_command = [f'{context.bin_dir}/network-behavior', '--bind-udp', '0.0.0.0:5000', '--to-udp', '127.0.0.1:6000']
+    network_command = [f'{context.bin_dir}/network-behavior', '--bind-udp', '0.0.0.0:5000', '--to-udp', '127.0.0.1:6000',
+                       '--log-config', context.log_config_network_behavior]
     if context.network_down_after:
         network_command.append('--network-down-after')
         network_command.append(str(context.network_down_after))

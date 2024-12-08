@@ -10,17 +10,7 @@
 // so it should be used for testing purpose with low volume only
 
 use clap::Parser;
-use log::LevelFilter;
-use log4rs::{
-    append::{
-        console::{ConsoleAppender, Target},
-        file::FileAppender,
-    },
-    config::{Appender, Root},
-    encode::pattern::PatternEncoder,
-    filter::threshold::ThresholdFilter,
-    Config,
-};
+use diode::init_logger;
 use nix::sys::socket::{setsockopt, sockopt::RcvBuf};
 use std::net::Ipv4Addr;
 use std::net::UdpSocket;
@@ -56,6 +46,13 @@ struct Args {
     /// Size of UDP write buffer
     #[arg(short, long, default_value_t = 4194304)] // 4096*1024
     buffer_size: usize,
+
+    /// Path to log configuration file
+    #[arg(long)]
+    log_config: Option<String>,
+    /// Verbosity level. Using it multiple times adds more logs.
+    #[arg(long, default_value_t = String::from("info"))]
+    pub log_level: String,
 }
 
 struct LossRate {
@@ -216,9 +213,12 @@ impl Stats {
         let elapsed = self.instant.elapsed().as_secs();
         if elapsed != self.last_elasped_sed {
             self.last_elasped_sed = elapsed;
-            println!(
+            log::info!(
                 "Sent bytes: {} Sent packets: {} Dropped bytes: {} Dropped packets: {}",
-                self.sent_volume, self.sent_packets, self.dropped_volume, self.dropped_packets
+                self.sent_volume,
+                self.sent_packets,
+                self.dropped_volume,
+                self.dropped_packets
             );
             self.sent_volume = 0;
             self.dropped_volume = 0;
@@ -248,7 +248,10 @@ fn main() {
         max_bandwidth = Some(MaxBandwidth::new(bandwidth));
     }
 
-    init_logger();
+    if let Err(e) = init_logger(args.log_config.as_ref(), &args.log_level) {
+        eprintln!("Unable to init log {:?}: {}", args.log_config, e);
+        return;
+    }
 
     let mut stats = Stats::new();
 
@@ -284,49 +287,11 @@ fn main() {
 
         if send_packet {
             if let Err(err) = tx_socket.send(&buf[0..len]) {
-                println!("Cannot send packets: {err}");
+                log::warn!("Cannot send packets: {err}");
             }
             stats.sent(len);
         } else {
             stats.dropped(len);
         }
     }
-}
-
-fn init_logger() {
-    let level = log::LevelFilter::Info;
-    let file_path = "/tmp/network.log";
-
-    // Build a stderr logger.
-    let stderr = ConsoleAppender::builder().target(Target::Stderr).build();
-
-    // Logging to log file.
-    let logfile = FileAppender::builder()
-        // Pattern: https://docs.rs/log4rs/*/log4rs/encode/pattern/index.html
-        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-        .build(file_path)
-        .expect("Cannot create file appender");
-
-    // Log Trace level output to file where trace is the default level
-    // and the programmatically specified level to stderr.
-    let config = Config::builder()
-        .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .appender(
-            Appender::builder()
-                .filter(Box::new(ThresholdFilter::new(level)))
-                .build("stderr", Box::new(stderr)),
-        )
-        .build(
-            Root::builder()
-                .appender("logfile")
-                .appender("stderr")
-                .build(LevelFilter::Trace),
-        )
-        .expect("Cannot create config builder");
-
-    // Use this to change log levels at runtime.
-    // This means you can change the default log level to trace
-    // if you are trying to debug an issue and need more logs on then turn it off
-    // once you are done.
-    let _handle = log4rs::init_config(config).expect("Cannot init log4rs");
 }
