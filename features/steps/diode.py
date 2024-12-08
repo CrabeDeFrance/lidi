@@ -48,7 +48,7 @@ udp_mtu = {mtu}
 heartbeat = 500
 
 # Path to log configuration file
-# {log_config}
+{log_config}
 
 # specific options for diode-send
 [sender]
@@ -70,7 +70,7 @@ session_expiration_timeout = 1000
 
 def write_lidi_config(context, filename, udp_port, log_config):
     filename = os.path.join("/dev/shm", filename)
-    log_config_str = "log_config = \"{log_config}\""
+    log_config_str = f"log_config = \"{log_config}\""
     with open(filename, "w") as f:
         f.write(build_lidi_config(context, udp_port, log_config_str))
         f.close()
@@ -99,7 +99,7 @@ def start_diode_receive(context):
     else:
         receiver_bind_udp_port = "5000"
 
-    lidi_config = write_lidi_config(context, "lidi_receiv.toml", receiver_bind_udp_port, context.log_config_diode_receive)
+    lidi_config = write_lidi_config(context, "lidi_receive.toml", receiver_bind_udp_port, context.log_config_diode_receive)
 
     diode_receive_command = [f'{context.bin_dir}/diode-receive', '-c', lidi_config]
 
@@ -207,7 +207,7 @@ def start_diode_send_dir(context):
         stdout = subprocess.PIPE
         stderr = subprocess.STDOUT
 
-    diode_send_dir_command = [f'{context.bin_dir}/diode-send-dir', '--maximum-files', '1', '--to-tcp', '127.0.0.1:5000', context.send_dir.name]
+    diode_send_dir_command = [f'{context.bin_dir}/diode-send-dir', '--log-config', context.log_config_diode_send_dir, '--maximum-delay', '200', '--to-tcp', '127.0.0.1:5000', context.send_dir.name]
 
     context.proc_diode_send_dir = subprocess.Popen(
         diode_send_dir_command,
@@ -231,18 +231,22 @@ def step_impl(context):
     stop_diode_send(context)
     start_diode_send(context)
 
+@when('diode-send-dir is started')
+def step_impl(context):
+    start_diode_send_dir(context)
+
 @given('diode is started with max throughput of {throughput} Mb/s')
 def step_diode_started_with_max_throughput(context, throughput):
     # two possibilities : limit file system read throughput or configure the diode for that
-    context.read_rate = int(throughput) * 1000000
-    start_throttled_diode(context, int(context.read_rate / 8))
+    context.read_rate = int(throughput)
+    start_throttled_diode(context, int(context.read_rate * 1000000 / 8))
 
 @given('diode is started with max throughput of {throughput} Mb/s and MTU {mtu}')
 def step_diode_started_with_max_throughput(context, throughput, mtu):
     # two possibilities : limit file system read throughput or configure the diode for that
-    context.read_rate = int(throughput) * 1000000
+    context.read_rate = int(throughput)
     context.mtu = int(mtu)
-    start_throttled_diode(context, int(context.read_rate / 8))
+    start_throttled_diode(context, int(context.read_rate * 1000000 / 8))
 
 @given('encoding block size is {encoding} and repair block size is {repair}')
 def step_set_encoding_repair_block_size(context, encoding, repair):

@@ -5,6 +5,7 @@ pub mod send;
 
 use std::{fmt, io, net};
 
+#[derive(Copy, Clone)]
 pub struct Config {
     pub diode: net::SocketAddr,
     pub buffer_size: usize,

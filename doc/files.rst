@@ -45,6 +45,7 @@ Another application is here to watch for changes in a given directory and send f
            --hash                           Compute a hash of file content (default is false)
            --ignore <IGNORE>                Pattern of filenames to ignore [default: ^\..*$]
            --maximum-files <MAXIMUM_FILES>  maximum number of files to send per session
+           --maximum-delay <MAXIMUM_DELAY>  maximum delay (in ms) before reconnecting the current session
            --log-config <LOG_CONFIG>        Path to log configuration file
            --log-level <LOG_LEVEL>          Verbosity level: info, debug, warning, error ... [default: info]
            -h, --help                       Print help

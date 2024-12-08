@@ -123,7 +123,7 @@ def test_file(context, dir, name, seconds):
         assert md5sum(filename) == h
 
         # ok => delete and quit
-        os.unlink(filename)
+        #os.unlink(filename)
         return
 
     # loop stops before receiving file
@@ -230,8 +230,8 @@ def step_impl(context, files, size):
     # now send all of them at once
     send_multiple_files(context)
 
-@then('diode-file-receive {files} files in {seconds} seconds')
-def step_impl(context, files, seconds):
+@then('diode-file-receive all files in {seconds} seconds')
+def step_impl(context, seconds):
     for name in context.files:
         test_file(context, context.receive_dir.name, name, seconds)
 
@@ -258,6 +258,27 @@ def step_impl(context, name, size):
     shutil.copy(filename, context.send_dir.name)
 
     temp_dir.cleanup()
+
+@when(u'we copy {files} files of size {size}')
+def step_impl(context, files, size):
+    # extract size & unit
+    count = size[0:-2]
+    blocksize = size[-2:]
+
+    if blocksize not in ['KB', 'MB', 'GB']:
+        raise Exception("Unknown unit")
+
+    temp_dir = TemporaryDirectory(dir=context.base_dir)
+
+    for i in range(int(files)):
+        context.counter += 1
+        name = str(f"test_file_{context.counter}_{i}")
+        filename = os.path.join(temp_dir.name, name)
+        create_file(context, filename, count, blocksize)
+        shutil.copy(filename, context.send_dir.name)
+
+    temp_dir.cleanup()
+
 
 @when(u'we move a file {name} of size {size}')
 def step_impl(context, name, size):
