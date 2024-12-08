@@ -64,6 +64,7 @@ def before_scenario(context, _feature):
     context.log_config_diode_receive_file = None
     context.log_config_diode_send = None
     context.log_config_diode_send_dir = None
+    context.log_config_network_behavior = None
 
     context.bin_dir = "./target/release/"
 
@@ -138,6 +139,12 @@ def setup_log_config(context, log_dir, level="debug"):
     context.log_config_diode_receive_file = os.path.join(log_dir, "log_config_diode_receive_file.yml")
     filename = os.path.join(log_dir, "diode_receive_file.log")
     with open(context.log_config_diode_receive_file, "w") as f:
+        f.write(build_log_config(filename, level))
+        f.close()
+
+    context.log_config_network_behavior = os.path.join(log_dir, "log_config_network_behavior.yml")
+    filename = os.path.join(log_dir, "network_behavior.log")
+    with open(context.log_config_network_behavior, "w") as f:
         f.write(build_log_config(filename, level))
         f.close()
 

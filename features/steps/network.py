@@ -21,8 +21,8 @@ use_step_matcher("cfparse")
 
 @given('there is a network interrupt of {network_up_after} after {network_down_after}')
 def step_impl(context, network_up_after, network_down_after):
-    context.network_up_after = string_to_bytes(network_up_after)
     context.network_down_after = string_to_bytes(network_down_after)
+    context.network_up_after = string_to_bytes(network_up_after) + context.network_down_after
 
 @given('there is a network drop of {percent} %')
 def step_given_network_drop_percent(context, percent):
