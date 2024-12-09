@@ -1,17 +1,20 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="en" data-content_root="./">
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Timers &mdash; Lidi 0.8.0 documentation</title>
-      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=86f27845" />
+
   
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/jquery.js"></script>
-        <script src="_static/underscore.js"></script>
-        <script src="_static/doctools.js"></script>
+  
+        <script src="_static/jquery.js?v=8dae8fb0"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=486e5634"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -24,11 +27,15 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="index.html" class="icon icon-home"> Lidi
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Lidi
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -69,8 +76,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-      <li>Timers</li>
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Timers</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/timers.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -81,9 +88,9 @@
            <div itemprop="articleBody">
              
   <section id="timers">
-<span id="id1"></span><h1>Timers<a class="headerlink" href="#timers" title="Permalink to this headline"></a></h1>
+<span id="id1"></span><h1>Timers<a class="headerlink" href="#timers" title="Link to this heading"></a></h1>
 <section id="heartbeat">
-<h2>Heartbeat<a class="headerlink" href="#heartbeat" title="Permalink to this headline"></a></h2>
+<h2>Heartbeat<a class="headerlink" href="#heartbeat" title="Link to this heading"></a></h2>
 <p>Since the purpose of the diode is to only allow one-way data traffic, the sender cannot be aware if a receiver is set up or not. But heartbeat messages are regularly sent through the diode so that the receiver can be aware of a sender disconnection. Heartbeat interval can be set with the following <a class="reference internal" href="configuration_file.html#configuration-file"><span class="std std-ref">Configuration file</span></a>. It must be the same on both sides:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">heartbeat</span> <span class="o">=</span> <span class="mi">1000</span>
 </pre></div>
@@ -96,7 +103,7 @@
 <p>Heartbeat value is used as default value for timeouts too, see bellow.</p>
 </section>
 <section id="blocks-and-sessions-timeouts">
-<span id="timeouts"></span><h2>Blocks and sessions timeouts<a class="headerlink" href="#blocks-and-sessions-timeouts" title="Permalink to this headline"></a></h2>
+<span id="timeouts"></span><h2>Blocks and sessions timeouts<a class="headerlink" href="#blocks-and-sessions-timeouts" title="Link to this heading"></a></h2>
 <p>Since lidi uses UDP protocol to transfer data, blocks and datagrams have to be reordered at application level.
 Link is unidirectionnal, so there is no way to ask for status or retransmission. Lidi receiver’s side has to make choices depending on what it receives.
 Of course, there are start and end of streams markers, but when packets are missing and arrives in any order, it is difficult to be sure of what happens.</p>
@@ -104,7 +111,7 @@ Of course, there are start and end of streams markers, but when packets are miss
 One is used to decide when to force reassembly of the current block.
 The other is used to decide when a session must be closed because we are not receive blocks anymore.</p>
 <section id="block-timeout">
-<h3>Block timeout<a class="headerlink" href="#block-timeout" title="Permalink to this headline"></a></h3>
+<h3>Block timeout<a class="headerlink" href="#block-timeout" title="Link to this heading"></a></h3>
 <p>If we miss parts of the current block and no more packet is received during <cite>block_expiration_timeout</cite>, we assume packets are lost and will never arrives. So we force decoding the current block with all data received (but this may fail if too many packets are missing).</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">receiver</span><span class="p">]</span>
 <span class="n">block_expiration_timeout</span> <span class="o">=</span> <span class="mi">1000</span>
@@ -114,7 +121,7 @@ The other is used to decide when a session must be closed because we are not rec
 <p>When a block is lost, the whole current session is lost. See <a class="reference internal" href="session.html#session"><span class="std std-ref">Session</span></a>.</p>
 </section>
 <section id="session-timeout">
-<h3>Session timeout<a class="headerlink" href="#session-timeout" title="Permalink to this headline"></a></h3>
+<h3>Session timeout<a class="headerlink" href="#session-timeout" title="Link to this heading"></a></h3>
 <p>The second is used to decide when to force closing a current session transfer.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">receiver</span><span class="p">]</span>
 <span class="n">session_expiration_timeout</span> <span class="o">=</span> <span class="mi">5000</span>

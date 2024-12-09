@@ -1,17 +1,20 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="en" data-content_root="./">
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Performance and fiability parameters &mdash; Lidi 0.8.0 documentation</title>
-      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=86f27845" />
+
   
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/jquery.js"></script>
-        <script src="_static/underscore.js"></script>
-        <script src="_static/doctools.js"></script>
+  
+        <script src="_static/jquery.js?v=8dae8fb0"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=486e5634"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -24,11 +27,15 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="index.html" class="icon icon-home"> Lidi
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Lidi
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -75,8 +82,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-      <li>Performance and fiability parameters</li>
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Performance and fiability parameters</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/performance.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -87,11 +94,11 @@
            <div itemprop="articleBody">
              
   <section id="performance-and-fiability-parameters">
-<h1>Performance and fiability parameters<a class="headerlink" href="#performance-and-fiability-parameters" title="Permalink to this headline"></a></h1>
+<h1>Performance and fiability parameters<a class="headerlink" href="#performance-and-fiability-parameters" title="Link to this heading"></a></h1>
 <section id="throughput-management">
-<h2>Throughput management<a class="headerlink" href="#throughput-management" title="Permalink to this headline"></a></h2>
+<h2>Throughput management<a class="headerlink" href="#throughput-management" title="Link to this heading"></a></h2>
 <section id="rate-limiting">
-<span id="ratelimit"></span><h3>Rate limiting<a class="headerlink" href="#rate-limiting" title="Permalink to this headline"></a></h3>
+<span id="ratelimit"></span><h3>Rate limiting<a class="headerlink" href="#rate-limiting" title="Link to this heading"></a></h3>
 <p>Basically, since Lidi diode-send scales pretty well and can reach very high throughput, it is often necessary to ratelimit the speed of diode-send to prevent packet drop in network.
 A single thread can send multiple gigabits per second so continuous packet drops can occur very quickly on networks. Once the maximum available bandwidth has be measured, it is important to set this limit in the configuration file :</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">sender</span><span class="p">]</span>
@@ -104,7 +111,7 @@ A single thread can send multiple gigabits per second so continuous packet drops
 </div>
 </section>
 <section id="multithreading">
-<span id="id1"></span><h3>Multithreading<a class="headerlink" href="#multithreading" title="Permalink to this headline"></a></h3>
+<span id="id1"></span><h3>Multithreading<a class="headerlink" href="#multithreading" title="Link to this heading"></a></h3>
 <p>Lidi is designed to reach up to 10Gb/s (or more) on an actual x86 CPU with multiple cores.
 Since sending, receiving, encoding and decoding packets are CPU intensive operations, it is necessary to use multiple threads to achieve high throughput.</p>
 <p>On sender side, if receiving data from local TCP socket is really fast, encoding and sending packets is quite slow. On a modern x86, each thread can encode and send up to 3 Gb/s of data.</p>
@@ -117,7 +124,7 @@ Since sending, receiving, encoding and decoding packets are CPU intensive operat
 <p>Default value is 5000. That means diode-send and diode-receive will use 1 thread to transfer data packets. To increase performance, add multiple ports in the configuration file.</p>
 </section>
 <section id="core-affinity">
-<span id="affinity"></span><h3>Core affinity<a class="headerlink" href="#core-affinity" title="Permalink to this headline"></a></h3>
+<span id="affinity"></span><h3>Core affinity<a class="headerlink" href="#core-affinity" title="Link to this heading"></a></h3>
 <p>Due to real time issues at high speed, it could be important to prevent context switch for UDP receiving threads. Thus, it is possible, to use kernel parameter isolcpus and to pin receive threads to a list of CPU cores.</p>
 <p>This is explained in many documentation, for instance this <a class="reference external" href="https://linux.enea.com/4.0/documentation/html/book-enea-linux-realtime-guide/#rt--core-isolation">linux realtime guide</a>.</p>
 <p>The simple way to do so, is set a list of core in your <a class="reference external" href="https://wiki.linuxfoundation.org/realtime/documentation/howto/tools/cpu-partitioning/isolcpus">linux kernel bootloader parameters</a></p>
@@ -133,7 +140,7 @@ Since sending, receiving, encoding and decoding packets are CPU intensive operat
 </section>
 </section>
 <section id="optimizing-cpu-performances">
-<h2>Optimizing CPU performances<a class="headerlink" href="#optimizing-cpu-performances" title="Permalink to this headline"></a></h2>
+<h2>Optimizing CPU performances<a class="headerlink" href="#optimizing-cpu-performances" title="Link to this heading"></a></h2>
 <p>To be transferred through the diode, data is sliced by lidi at different levels:</p>
 <blockquote>
 <div><ul class="simple">
@@ -143,7 +150,7 @@ Since sending, receiving, encoding and decoding packets are CPU intensive operat
 </div></blockquote>
 <p>One can have effect on the slicing sizes to achieve optimal performances by using several command line options.</p>
 <section id="packet-sizes">
-<span id="mtu"></span><h3>Packet sizes<a class="headerlink" href="#packet-sizes" title="Permalink to this headline"></a></h3>
+<span id="mtu"></span><h3>Packet sizes<a class="headerlink" href="#packet-sizes" title="Link to this heading"></a></h3>
 <p>Firstly, the parameter which has the biggest impact on the network and the CPU load is the packet size.
 If possible, MTU on the UDP interface should be increased, and must be set to the same value on sender and receiver sides:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">udp_mtu</span> <span class="o">=</span> <span class="mi">1500</span>
@@ -157,7 +164,7 @@ Of course, this number should not exeed network interface parameter or packet fr
 </div>
 </section>
 <section id="block-sizes">
-<span id="raptorq"></span><h3>Block sizes<a class="headerlink" href="#block-sizes" title="Permalink to this headline"></a></h3>
+<span id="raptorq"></span><h3>Block sizes<a class="headerlink" href="#block-sizes" title="Link to this heading"></a></h3>
 <p>Then, on the logical level, fountain code operate on blocks. Blocks have fixed size and will be split in IP packets to be sent on the network.
 Blocks are made of two parts : encoding block and repair block. Encoding block contains original data. Repair block is optional and represents redundancy : they are used by fountain codes to ensure data reconstruction.</p>
 <p>On both sides, parameters have the same name and must be set to the same values.</p>
@@ -181,7 +188,7 @@ Blocks are made of two parts : encoding block and repair block. Encoding block c
 </section>
 </section>
 <section id="kernel-parameters">
-<span id="tweaking-parameters"></span><h2>Kernel parameters<a class="headerlink" href="#kernel-parameters" title="Permalink to this headline"></a></h2>
+<span id="tweaking-parameters"></span><h2>Kernel parameters<a class="headerlink" href="#kernel-parameters" title="Link to this heading"></a></h2>
 <p>If you want to run lidi closer to its intended speed, please set the following sysctl to the maximum value (root required):</p>
 <p>Mandatory parameter:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">net</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">rmem_max</span><span class="o">=</span><span class="mi">2000000000</span>
