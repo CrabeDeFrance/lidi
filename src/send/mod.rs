@@ -266,11 +266,17 @@ impl SenderConfig {
                         match tcp.read() {
                             Ok(message) => {
                                 if let Some((message, payload)) = message {
+                                    log::debug!(
+                                        "tcp: session {} block {} flags {}",
+                                        message.session(),
+                                        message.block(),
+                                        message.message_type()
+                                    );
+
                                     counter!("tx_tcp_blocks").increment(1);
                                     counter!("tx_tcp_bytes").increment(payload.len() as u64);
 
                                     let message_type = message.message_type();
-
                                     if let Err(e) = to_encoding[to_encoding_id as usize]
                                         .send((message, payload))
                                     {

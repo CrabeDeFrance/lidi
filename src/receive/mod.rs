@@ -5,9 +5,9 @@
 // [crossbeam_channel] bounded channels to form the following data pipeline:
 //
 // ```text
-//                        -----------
-// (udp sock) udp recv  --| packets |-- >  reorder + decoder + tcp sender (tcp sock)
-//                        -----------
+// +---------------------+   packets   +-------------------+   blocks   +-----------------------+
+// | (udp sock) udp recv | ----------> | reorder + decoder | ---------> | tcp sender (tcp sock) |
+// +---------------------+             +-------------------+            +-----------------------+
 // ```
 //
 //
@@ -54,6 +54,13 @@ mod tcp;
 use crate::udp::Udp;
 use heartbeat::HeartBeat;
 
+pub struct ReceiverBlock {
+    flags: MessageType,
+    session_id: u8,
+    block_id: u8,
+    block: Option<Vec<u8>>,
+}
+
 /// An instance of this data structure is shared by workers to synchronize them and to access
 /// communication channels
 pub struct ReceiverConfig {
@@ -71,8 +78,12 @@ pub struct ReceiverConfig {
     pub object_transmission_info: ObjectTransmissionInformation,
     pub to_buffer_size: usize,
     pub from_max_messages: u16,
+    // udp to decode
     pub to_reorder: Sender<Packet>,
     pub for_reorder: Receiver<Packet>,
+    // decode to tcp
+    pub to_send: Sender<ReceiverBlock>,
+    pub for_send: Receiver<ReceiverBlock>,
 }
 
 impl TryFrom<DiodeConfig> for ReceiverConfig {
@@ -88,9 +99,10 @@ impl TryFrom<DiodeConfig> for ReceiverConfig {
             + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size)
                 as u16;
 
-        // Set a maximum channel size to 10.000 bulk of packets. Since one packet is between 1500 and 9000 bytes and there is around 30 to 100 packets per block, this queue can consume a several GB maximum.
+        // Set a maximum channel size to 1.000 packets. Since one packet is between 1500 and 9000 bytes and there is around 30 to 100 packets per block, this queue can consume up to 1 GB.
+        let (to_reorder, for_reorder) = crossbeam_channel::bounded::<Packet>(10_000);
         // With the actual algorithm, this can grow up when reconnecting tcp connection to diode-receive-file / if there is some issue to connect to diode-receive-file
-        let (to_reorder, for_reorder) = crossbeam_channel::bounded::<Packet>(100_000);
+        let (to_send, for_send) = crossbeam_channel::bounded::<ReceiverBlock>(1_000);
 
         match config.receiver {
             None => Err(Error::new(
@@ -131,6 +143,8 @@ impl TryFrom<DiodeConfig> for ReceiverConfig {
                     from_max_messages,
                     to_reorder,
                     for_reorder,
+                    for_send,
+                    to_send,
                     session_expiration_timeout: Duration::from_millis(
                         config_receiver
                             .session_expiration_timeout
@@ -170,6 +184,8 @@ impl ReceiverConfig {
         let tcp_buffer_size = self.to_buffer_size;
         let block_expiration_timeout = self.block_expiration_timeout;
         let for_reorder = self.for_reorder.clone();
+        let to_send = self.to_send.clone();
+        let for_send = self.for_send.clone();
         let session_expiration_timeout = self.session_expiration_timeout;
         let heartbeat_interval = self.heartbeat_interval;
         let nb_threads = self.udp_port_list.len();
@@ -182,18 +198,24 @@ impl ReceiverConfig {
             nb_threads as u8,
         );
 
-        let rx_tcp = thread::Builder::new()
-            .name("lidi_rx_tcp".to_string())
+        let rx_decode = thread::Builder::new()
+            .name("lidi_rx_reorder_decode".to_string())
             .spawn(move || {
-                ReceiverConfig::reorder_decoding_send_loop(
+                ReceiverConfig::reorder_decoding_loop(
                     for_reorder,
-                    (object_transmission_info, repair_block_size),
-                    (tcp_to, tcp_buffer_size),
+                    to_send,
+                    object_transmission_info,
+                    repair_block_size,
                     session_expiration_timeout,
                     block_expiration_timeout,
                     parameters,
                 )
             })?;
+        threads.push(rx_decode);
+
+        let rx_tcp = thread::Builder::new()
+            .name("lidi_rx_tcp".to_string())
+            .spawn(move || ReceiverConfig::tcp_send_loop(for_send, tcp_to, tcp_buffer_size))?;
         threads.push(rx_tcp);
 
         let from_udp = self.from_udp;
@@ -234,18 +256,218 @@ impl ReceiverConfig {
         Ok(())
     }
 
+    // entry point of send tcp thread
+    // this loop runs over sessions (tcp connections)
+    fn tcp_send_loop(
+        for_send: Receiver<ReceiverBlock>,
+        tcp_to: net::SocketAddr,
+        tcp_buffer_size: usize,
+    ) {
+        // first block to send after reconnecting
+        let mut send_log_once = true;
+
+        // if there is a block to send at start
+        let mut first_block: Option<ReceiverBlock> = None;
+
+        loop {
+            if send_log_once {
+                log::info!("tcp: connecting to {tcp_to}");
+            }
+            // connect and reconnect on error
+            if let Ok(client) = TcpStream::connect(tcp_to) {
+                log::info!("tcp: connected to diode-receive");
+                // reset states
+
+                let mut tcp = Tcp::new(client, tcp_buffer_size);
+
+                let current_session = match first_block {
+                    Some(first_block) => {
+                        ReceiverConfig::tcp_send_first_block(&mut tcp, first_block)
+                    }
+                    None => None,
+                };
+
+                first_block = ReceiverConfig::tcp_send_inner_loop(&for_send, tcp, current_session);
+
+                send_log_once = true;
+            } else {
+                send_log_once = false;
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
+    }
+
+    // return None if we must reconnect, or current_session id to follow
+    fn tcp_send_first_block(tcp: &mut Tcp, first_block: ReceiverBlock) -> Option<u8> {
+        log::debug!(
+            "send first block: session {} block {} flags {}",
+            first_block.session_id,
+            first_block.block_id,
+            first_block.flags
+        );
+        let data = match first_block.block {
+            None => {
+                // too bad, first block is not correct
+                log::warn!(
+                    "tcp: session {} lost first block {} flags {}: session is corrupted, skip this session and wait for the next",
+                    first_block.session_id,
+                    first_block.block_id,
+                    first_block.flags
+                );
+                // we drop this block
+                counter!("rx_skip_block").increment(1);
+                return None;
+            }
+
+            Some(data) => data,
+        };
+
+        // everything ok, send this block
+        if let Err(e) =
+            ReceiverConfig::tcp_send(tcp, first_block.block_id, first_block.flags, &data)
+        {
+            log::warn!("can't send block => reset tcp: {e}");
+            return None;
+        }
+
+        // if last block, close tcp session
+        if first_block.flags.contains(MessageType::End) {
+            if let Err(e) = tcp.flush() {
+                log::warn!("tcp: cant flush final data: {e}");
+            }
+            // last block : quit to reconnect
+            log::debug!("quit to force reconnect");
+            return None;
+        }
+
+        // we want to follow this session, return the current session_id
+        Some(first_block.session_id)
+    }
+
+    fn tcp_send_inner_loop(
+        for_send: &Receiver<ReceiverBlock>,
+        mut tcp: Tcp,
+        // what is the current session. if the session changes, we have to reconnect
+        mut current_session: Option<u8>,
+    ) -> Option<ReceiverBlock> {
+        loop {
+            let block = match for_send.recv() {
+                Err(e) => {
+                    log::warn!("Unable to read block: {e}");
+                    continue;
+                }
+                Ok(block) => {
+                    log::debug!(
+                        "read block: session {} block {} flags {}",
+                        block.session_id,
+                        block.block_id,
+                        block.flags
+                    );
+                    block
+                }
+            };
+
+            // check if we received a block for a different session
+            match current_session {
+                None => {
+                    if block.flags.contains(MessageType::Start) {
+                        current_session = Some(block.session_id);
+                    } else {
+                        // we are waiting the next session start to init the state
+                        counter!("rx_skip_block").increment(1);
+                        continue;
+                    }
+                }
+                Some(current_session) => {
+                    if block.session_id != current_session {
+                        let extra_info = if block.session_id == 0 {
+                            "probably due to a diode-send restart"
+                        } else {
+                            "probably due to a network interrupt"
+                        };
+
+                        if block.session_id == 0 {
+                            log::warn!(
+                                "changed session ! {} != expected {}: {}",
+                                block.session_id,
+                                current_session,
+                                extra_info
+                            );
+                        }
+                        // we changed session without receiving last message
+                        // need to close this session and restart
+                        return Some(block);
+                    }
+                }
+            }
+
+            // check if this block was properly decoded
+            let data = match block.block {
+                None => {
+                    log::warn!("tcp: session {} lost block {}: session is corrupted, skip this session and wait for the next", block.session_id, block.block_id);
+                    // what to do if a block is not decoded ???
+                    // could be configured, but for now, we disconnect
+                    return None;
+                }
+                Some(data) => data,
+            };
+
+            // everything ok, send this block
+            if let Err(e) = ReceiverConfig::tcp_send(&mut tcp, block.block_id, block.flags, &data) {
+                log::warn!("can't send block => reset tcp: {e}");
+                return None;
+            }
+
+            // if last block, close tcp session
+            if block.flags.contains(MessageType::End) {
+                if let Err(e) = tcp.flush() {
+                    log::warn!("tcp: cant flush final data: {e}");
+                }
+                // last block : quit to reconnect
+                log::debug!("quit to force reconnect");
+                return None;
+            }
+        }
+
+        // this loop exits on protocol abort or data end
+    }
+
+    fn tcp_send(tcp: &mut Tcp, block_id: u8, flags: MessageType, block: &[u8]) -> Result<()> {
+        log::trace!(
+            "tcp: send: block {} flags {} len {}",
+            block_id,
+            flags,
+            block.len()
+        );
+
+        let payload_len = block.len();
+        match tcp.send(block) {
+            Ok(()) => {
+                counter!("rx_tcp_blocks").increment(1);
+                counter!("rx_tcp_bytes").increment(payload_len as u64);
+            }
+            Err(e) => {
+                counter!("rx_tcp_blocks_err").increment(1);
+                counter!("rx_tcp_bytes_err").increment(payload_len as u64);
+                return Err(e);
+            }
+        }
+
+        Ok(())
+    }
+
     // entry point of decode & send tcp thread
     // this loop runs over sessions (tcp connections)
     // we do not pop packets from rx if tcp session to diode-receive-file is not setup
-    fn reorder_decoding_send_loop(
+    fn reorder_decoding_loop(
         for_reorder: Receiver<Packet>,
-        transmission: (ObjectTransmissionInformation, u32),
-        tcp: (net::SocketAddr, usize), // (config.to, to buffer size)
+        to_send: Sender<ReceiverBlock>,
+        object_transmission_info: ObjectTransmissionInformation,
+        repair_block_size: u32,
         session_expiration_timeout: Duration,
         block_expiration_timeout: Duration, // config.block_expiration_timeout
         parameters: LidiParameters,
     ) {
-        let (object_transmission_info, repair_block_size) = transmission;
         let nb_normal_packets = protocol::nb_encoding_packets(&object_transmission_info);
         let nb_repair_packets =
             protocol::nb_repair_packets(&object_transmission_info, repair_block_size);
@@ -259,74 +481,12 @@ impl ReceiverConfig {
             session_expiration_timeout,
         );
 
-        // first block to send after reconnecting
-        let mut first_data_to_send = None;
-
-        let mut send_log_once = true;
-
-        loop {
-            let (tcp_to, tcp_buffer_size) = tcp;
-            if send_log_once {
-                log::info!("tcp: connecting to {tcp_to}");
-            }
-            // connect and reconnect on error
-            if let Ok(client) = TcpStream::connect(tcp_to) {
-                log::info!("tcp: connected to diode-receive");
-                let tcp = Tcp::new(client, tcp_buffer_size);
-
-                // this loop exits on protocol abort or data end
-                first_data_to_send = ReceiverConfig::reorder_decoding_send_loop_session(
-                    &for_reorder,
-                    &mut reorder,
-                    &decoding,
-                    tcp,
-                    first_data_to_send,
-                    parameters,
-                );
-                send_log_once = true;
-            } else {
-                send_log_once = false;
-                std::thread::sleep(Duration::from_millis(100));
-            }
-        }
-    }
-
-    // if we return from this loop, we close the tcp socket and start a new connection for a new
-    // transfer
-    fn reorder_decoding_send_loop_session(
-        for_reorder: &Receiver<Packet>,
-        reorder: &mut Reorder,
-        decoding: &Decoding,
-        mut tcp: Tcp,
-        first_data_to_send: Option<(MessageType, u8, u8, Vec<EncodingPacket>)>,
-        parameters: LidiParameters,
-    ) -> Option<(MessageType, u8, u8, Vec<EncodingPacket>)> {
         let mut heartbeat = HeartBeat::new(parameters.heartbeat_interval() * 2);
         // loop control, when it is possible to pop, try to pop as much as possible
         let mut test_pop_first = false;
 
-        // what is the current session. if the session changes, we have to reconnect
-        let mut current_session = None;
-
-        // if we should drop all following blocks because we got a fatal error for this session
-        let mut drop_session = false;
-
         // if we received init - if not, we will initialize reorder with first block received
         let mut reorder_initialized = false;
-
-        // check first data to send
-        if let Some((flags, _session_id, block_id, encoded_packets)) = first_data_to_send {
-            if !Self::decode_and_send(
-                decoding,
-                &mut tcp,
-                &mut drop_session,
-                flags,
-                block_id,
-                encoded_packets,
-            ) {
-                return None;
-            }
-        }
 
         loop {
             let (flags, session_id, block_id, encoded_packets) = if test_pop_first {
@@ -416,59 +576,38 @@ impl ReceiverConfig {
                 }
             };
 
-            match current_session {
-                // initialize with the current session
-                None => current_session = Some(session_id),
-                // disconnect if the session changes
-                Some(id) => {
-                    if session_id != id {
-                        log::warn!("changed session ! {session_id} != {id}");
-                        return Some((flags, session_id, block_id, encoded_packets));
-                    } else if drop_session {
-                        // skip all packets until we change session
-                        counter!("rx_skip_block").increment(1);
-                        continue;
-                    }
-                }
-            }
-
-            if Self::decode_and_send(
-                decoding,
-                &mut tcp,
-                &mut drop_session,
-                flags,
-                block_id,
-                encoded_packets,
-            ) {
-                continue;
-            } else {
-                return None;
+            let block = Self::decode(&decoding, flags, block_id, session_id, encoded_packets);
+            if let Err(e) = to_send.send(block) {
+                log::warn!("can't send block to tcp: {e}");
             }
         }
     }
 
     // try to decode a block from a list of packets.
     // return true if we should continue (session still running), false if we should stop processing because of an error
-    fn decode_and_send(
+    fn decode(
         decoding: &Decoding,
-        tcp: &mut Tcp,
-        drop_session: &mut bool,
         flags: MessageType,
         block_id: u8,
+        session_id: u8,
         encoded_packets: Vec<EncodingPacket>,
-    ) -> bool {
+    ) -> ReceiverBlock {
         if encoded_packets.len() == decoding.capacity() {
             log::trace!(
-                "reorder: trying to decode block {} with all {} packets",
+                "reorder: session {} trying to decode block {} with all {} packets (flags {})",
+                session_id,
                 block_id,
-                encoded_packets.len()
+                encoded_packets.len(),
+                flags
             );
         } else {
             log::trace!(
-                "reorder: trying to decode block {} with only {}/{} packets",
+                "reorder: session {} trying to decode block {} with only {}/{} packets (flags {})",
+                session_id,
                 block_id,
                 encoded_packets.len(),
-                decoding.capacity()
+                decoding.capacity(),
+                flags
             );
         }
 
@@ -476,11 +615,7 @@ impl ReceiverConfig {
             None => {
                 counter!("rx_decoding_blocks_err").increment(1);
                 log::debug!("decode: lost block {block_id}");
-                if !*drop_session {
-                    log::warn!("decode: lost block {block_id}: session is corrupted, skip this session and wait for the next");
-                }
-                *drop_session = true;
-                return true;
+                None
             }
             Some(block) => {
                 counter!("rx_decoding_blocks").increment(1);
@@ -489,47 +624,16 @@ impl ReceiverConfig {
                     block_id,
                     block.len()
                 );
-                block
+                Some(block)
             }
         };
 
-        log::trace!(
-            "tcp: send: block {} flags {} len {}",
-            block_id,
+        ReceiverBlock {
             flags,
-            block.len()
-        );
-
-        let payload_len = block.len();
-        match tcp.send(block) {
-            Ok(()) => {
-                counter!("rx_tcp_blocks").increment(1);
-                counter!("rx_tcp_bytes").increment(payload_len as u64);
-            }
-            Err(e) => {
-                log::debug!("tcp: fail to send block: {e}");
-                counter!("rx_tcp_blocks_err").increment(1);
-                counter!("rx_tcp_bytes_err").increment(payload_len as u64);
-                // missing block : we have to trash all following blocks
-                // before reconnecting, so we start on a clean new session
-                if !*drop_session {
-                    log::warn!("decode: fail to send block {block_id}: {e}: session is corrupted, skip this session and wait for the next");
-                }
-                *drop_session = true;
-                return true;
-            }
+            session_id,
+            block_id,
+            block,
         }
-
-        if flags.contains(MessageType::End) {
-            if let Err(e) = tcp.flush() {
-                log::warn!("tcp: cant flush final data: {e}");
-            }
-            // last block : quit to reconnect
-            log::debug!("quit to force reconnect");
-            return false;
-        }
-
-        true
     }
 
     // loop of in rx threads

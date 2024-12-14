@@ -8,29 +8,27 @@ import os
 # function call before any feature or scenario
 def before_all(context):
     # build all applications before running any test
-    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-receive'])
-    proc.communicate()
-
-    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-send'])
-    proc.communicate()
-
-    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'network-behavior'])
-    proc.communicate()
-
-    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-receive-file'])
-    proc.communicate()
-
-    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-send-file'])
-    proc.communicate()
-
-    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-send-dir'])
+    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-receive', '--bin', 'diode-send', '--bin', 'network-behavior', '--bin', 'diode-receive-file', '--bin', 'diode-send-file', '--bin', 'diode-send-dir'])
     proc.communicate()
 
 
 # function called before every test : initialize context with default values
 def before_scenario(context, _feature):
     # test temp dir
-    context.base_dir="/dev/shm"
+    context.base_dir="/dev/shm/lidi"
+    if not os.path.isdir(context.base_dir):
+        os.mkdir(context.base_dir)
+
+    # delete all files in folder
+    try:
+         files = os.listdir(context.base_dir)
+         for file in files:
+             file_path = os.path.join(context.base_dir, file)
+             if os.path.isfile(file_path):
+                 os.remove(file_path)
+    except OSError:
+        print("Error occurred while deleting files.")
+
     context.send_dir = TemporaryDirectory(dir=context.base_dir)
     context.send_ratelimit_dir = None
     context.receive_dir = TemporaryDirectory(dir=context.base_dir)
@@ -117,7 +115,7 @@ root:
     - file
 """
 
-def setup_log_config(context, log_dir, level="debug"):
+def setup_log_config(context, log_dir, level="info"):
     context.log_config_diode_receive = os.path.join(log_dir, "log_config_diode_receive.yml")
     filename = os.path.join(log_dir, "diode_receive.log")
     with open(context.log_config_diode_receive, "w") as f:
