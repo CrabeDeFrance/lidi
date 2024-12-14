@@ -69,7 +69,7 @@ session_expiration_timeout = 1000
 """
 
 def write_lidi_config(context, filename, udp_port, log_config):
-    filename = os.path.join("/dev/shm", filename)
+    filename = os.path.join(context.base_dir, filename)
     log_config_str = f"log_config = \"{log_config}\""
     with open(filename, "w") as f:
         f.write(build_lidi_config(context, udp_port, log_config_str))

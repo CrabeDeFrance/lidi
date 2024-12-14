@@ -63,7 +63,7 @@ impl Tcp {
         self.bufwriter.flush()
     }
 
-    pub fn send(&mut self, payload: Vec<u8>) -> Result<(), receive::Error> {
+    pub fn send(&mut self, payload: &[u8]) -> Result<(), receive::Error> {
         // get real size
         let mut payload_size_bytes: [u8; PAYLOAD_OVERHEAD] = [0; PAYLOAD_OVERHEAD];
         payload_size_bytes.copy_from_slice(&payload[0..PAYLOAD_OVERHEAD]);

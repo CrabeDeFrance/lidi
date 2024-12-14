@@ -36,6 +36,8 @@ struct Block {
     used: bool,
     /// slot / block id
     id: u8,
+    /// packet flags
+    flags: MessageType,
 }
 
 impl Block {
@@ -49,27 +51,36 @@ impl Block {
             loop_count: 0,
             used: false,
             id,
+            flags: MessageType::empty(),
         }
     }
 
-    fn push(&mut self, packet: EncodingPacket, last_timestamp: Instant) {
+    fn push(&mut self, packet: EncodingPacket, last_timestamp: Instant, flags: MessageType) {
         self.packets.push(packet);
         self.used = true;
         self.last_timestamp = last_timestamp;
+        self.flags = flags;
     }
 
     fn clear(&mut self) {
         self.packets.clear();
         self.loop_count = 0;
         self.used = false;
+        self.flags = MessageType::empty();
     }
 
-    fn pop(&mut self) -> Option<Vec<EncodingPacket>> {
-        trace!("reorder: block.pop: len: {}", self.packets.len(),);
+    fn pop(&mut self) -> Option<(Vec<EncodingPacket>, MessageType)> {
+        trace!(
+            "reorder: block.pop: len: {} flags: {}",
+            self.packets.len(),
+            self.flags
+        );
 
         self.loop_count += 1;
         self.used = false;
-        Some(self.swap())
+        let ret = (self.swap(), self.flags);
+        self.flags = MessageType::empty();
+        Some(ret)
     }
 
     /// return true if all packets are stored for this block
@@ -120,8 +131,6 @@ struct Session {
     latest_block: usize,
     /// list of blocks, containing packets to reorder
     queues: Vec<Block>,
-    /// if we know what is the last block id for this session (set when we receive 'end' flag)
-    end_block: Option<u8>,
     /// this session id (const) : mainly used to recreate header
     session: u8,
     /// last timestamp
@@ -148,7 +157,6 @@ impl Session {
         Self {
             current_block: FIRST_BLOCK_ID,
             queues,
-            end_block: None,
             latest_block: FIRST_BLOCK_ID as usize,
             session,
             last_timestamp: Instant::now(),
@@ -169,14 +177,14 @@ impl Session {
     /// Add a received packet to this session
     ///
     /// Return true if we start filling a new queue
-    pub fn push(&mut self, block_id: u8, packet: EncodingPacket) {
+    pub fn push(&mut self, block_id: u8, packet: EncodingPacket, flags: MessageType) {
         // update last timestamp for every inserted packet
         self.last_timestamp = Instant::now();
         self.active = true;
 
         let block = &mut self.queues[block_id as usize];
 
-        block.push(packet, self.last_timestamp);
+        block.push(packet, self.last_timestamp, flags);
 
         let real_block_id = block.id();
 
@@ -194,7 +202,6 @@ impl Session {
         self.current_block = FIRST_BLOCK_ID;
         self.latest_block = FIRST_BLOCK_ID as usize;
         self.queues.iter_mut().for_each(|q| q.clear());
-        self.end_block = None;
         self.active = false;
     }
 
@@ -261,29 +268,16 @@ impl Session {
     }
 
     pub fn pop_first(&mut self) -> Option<(MessageType, u8, u8, Vec<EncodingPacket>)> {
-        let mut flags = MessageType::Data;
         let current_block_id = self.current_block;
 
         let queue = &mut self.queues[current_block_id as usize];
 
-        if let Some(packets) = queue.pop() {
-            if let Some(end_block) = self.end_block {
-                if current_block_id == end_block {
-                    flags |= MessageType::End;
-                }
-            }
-
+        if let Some((packets, flags)) = queue.pop() {
             self.incr_block();
 
             Some((flags, self.session, current_block_id, packets))
         } else {
             None
-        }
-    }
-
-    pub fn end_block(&mut self, block_id: u8) {
-        if self.end_block.is_none() {
-            self.end_block = Some(block_id);
         }
     }
 
@@ -344,9 +338,6 @@ impl Reorder {
         packet: EncodingPacket,
     ) -> Option<(MessageType, u8, u8, Vec<EncodingPacket>)> {
         // first process info from header
-        if header.message_type().contains(MessageType::End) {
-            self.session_mut(header.session()).end_block(header.block());
-        }
 
         // then store received packet
         self.store_packet(header, packet);
@@ -364,13 +355,14 @@ impl Reorder {
         assert_eq!(message_block_id, header.block());
 
         trace!(
-            "reorder: store packet session {session_id} block {message_block_id} part {}",
-            header.seq()
+            "reorder: store packet session {session_id} block {message_block_id} seq {} flags {}",
+            header.seq(),
+            header.message_type()
         );
 
         let session = self.session_mut(session_id);
 
-        session.push(message_block_id, packet);
+        session.push(message_block_id, packet, header.message_type());
     }
 
     fn process_flush(

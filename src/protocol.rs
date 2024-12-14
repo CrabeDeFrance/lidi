@@ -139,6 +139,11 @@ impl Header {
             let session = data[1];
             let block = data[2];
             let seq = data[3];
+
+            log::trace!(
+                "packet header deserialized: session {session} block {block} seq {seq} flags {flags}"
+            );
+
             Ok(Header {
                 flags,
                 session,
