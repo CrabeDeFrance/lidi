@@ -208,7 +208,7 @@ def start_diode_send_dir(context):
         stdout = subprocess.PIPE
         stderr = subprocess.STDOUT
 
-    diode_send_dir_command = [f'{context.bin_dir}/diode-send-dir', '--log-config', context.log_config_diode_send_dir, '--maximum-delay', '200', '--to-tcp', '127.0.0.1:5000', context.send_dir.name]
+    diode_send_dir_command = [f'{context.bin_dir}/diode-send-dir', '--log-config', context.log_config_diode_send_dir, '--maximum-files', '1', '--to-tcp', '127.0.0.1:5000', context.send_dir.name]
 
     context.proc_diode_send_dir = subprocess.Popen(
         diode_send_dir_command,
