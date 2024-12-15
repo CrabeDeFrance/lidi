@@ -95,7 +95,7 @@ fn watch_files(inotify: &mut Inotify, dir: &str, ignore_file: &str, inotify_tx: 
 // return a list of files in directory, ordered by modified date (from oldest to newest)
 fn list_dir(dir: &str, ignore_file: &str) -> VecDeque<String> {
     // btreemap to help to order files by date
-    let mut ordered_files: BTreeMap<u128, Vec<String>> = BTreeMap::new();
+    let mut ordered_files: BTreeMap<u128, VecDeque<String>> = BTreeMap::new();
     // vec order from oldest to newest
     let mut ret = VecDeque::new();
     let ignore_re = Regex::new(ignore_file).unwrap();
@@ -121,32 +121,38 @@ fn list_dir(dir: &str, ignore_file: &str) -> VecDeque<String> {
         log::debug!("new file: {}", filename);
 
         // insert files, automatically ordered by key (date)
-        match std::fs::metadata(path.path()) {
-            Ok(metadata) => match metadata.modified() {
-                Ok(t) => match t.duration_since(UNIX_EPOCH) {
-                    Ok(d) => {
-                        let filename = path.path().to_string_lossy().to_string();
-                        let raw = d.as_nanos();
-                        if let Some(row) = ordered_files.get_mut(&raw) {
-                            row.push(filename);
-                        } else {
-                            ordered_files.insert(raw, vec![filename]);
-                        }
-                    }
-                    Err(e) => {
-                        log::warn!("Can't get time duration for file {filename}: {e}");
-                        continue;
-                    }
-                },
-                Err(e) => {
-                    log::warn!("Can't get modified time for file {filename}: {e}");
-                    continue;
-                }
-            },
+        let modified_date = match std::fs::metadata(path.path()) {
+            Ok(metadata) => metadata.modified(),
             Err(e) => {
                 log::warn!("Can't get metadata for file {filename}: {e}");
                 continue;
             }
+        };
+
+        let duration = match modified_date {
+            Ok(t) => t.duration_since(UNIX_EPOCH),
+            Err(e) => {
+                log::warn!("Can't get modified time for file {filename}: {e}");
+                continue;
+            }
+        };
+
+        let duration = match duration {
+            Ok(duration) => duration,
+            Err(e) => {
+                log::warn!("Can't get time duration for file {filename}: {e}");
+                continue;
+            }
+        };
+
+        let filename = path.path().to_string_lossy().to_string();
+        let duration_nano = duration.as_nanos();
+        if let Some(row) = ordered_files.get_mut(&duration_nano) {
+            row.push_front(filename);
+        } else {
+            let mut v = VecDeque::new();
+            v.push_front(filename);
+            ordered_files.insert(duration_nano, v);
         }
     }
 
