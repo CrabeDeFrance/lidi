@@ -5,7 +5,7 @@ use std::{
     fs,
     hash::Hash,
     io::{Read, Write},
-    net,
+    net::{self, TcpStream},
     os::unix::fs::PermissionsExt,
     path,
 };
@@ -23,33 +23,51 @@ pub fn receive_files(config: &file::Config, output_dir: &path::Path) -> Result<(
 }
 
 fn receive_tcp_loop(config: &file::Config, output_dir: &path::Path) -> Result<(), file::Error> {
-    loop {
-        // quit loop in case of error to force reconnecting
-        log::trace!("new tcp receive file");
-        let server = net::TcpListener::bind(config.diode)?;
-        receive_tcp_socket(config, output_dir, server)?;
-    }
-}
+    let (tx, rx) = crossbeam_channel::bounded::<TcpStream>(100);
 
-fn receive_tcp_socket(
-    config: &file::Config,
-    output_dir: &path::Path,
-    server: net::TcpListener,
-) -> Result<(), file::Error> {
-    let (mut client, client_addr) = server.accept()?;
-    log::debug!("new Unix client ({client_addr}) connected");
-    drop(server);
-    loop {
-        match receive_file(config, &mut client, output_dir) {
-            Ok((filename, total, stream_end)) => {
-                log::info!("{filename} received, {total} bytes");
-                if stream_end {
-                    return Ok(());
+    let server = net::TcpListener::bind(config.diode)?;
+    if let Err(e) = std::thread::Builder::new()
+        .name("lidi_rx_file_bind".to_string())
+        .spawn(move || {
+            loop {
+                let (client, client_addr) = match server.accept() {
+                    Ok(ret) => ret,
+                    Err(e) => {
+                        log::warn!("Can't accept new client: {e}");
+                        continue;
+                    }
+                };
+                log::debug!("new client ({client_addr}) connected");
+                // quit loop in case of error to force reconnecting
+                log::trace!("new tcp receive file");
+                if let Err(e) = tx.send(client) {
+                    log::warn!("Can't send new client: {e}");
                 }
             }
+        })
+    {
+        log::error!("Can't start new thread: {e}");
+    }
+
+    loop {
+        let mut client = match rx.recv() {
+            Ok(client) => client,
             Err(e) => {
-                log::error!("failed to receive file: {e}");
-                return Err(e);
+                log::warn!("Can't get new client: {e}");
+                continue;
+            }
+        };
+
+        // try to read files until diode-receive disconnects
+        loop {
+            match receive_file(config, &mut client, output_dir) {
+                Ok((filename, total, _stream_end)) => {
+                    log::info!("{filename} received, {total} bytes");
+                }
+                Err(e) => {
+                    log::error!("failed to receive file: {e}");
+                    break;
+                }
             }
         }
     }

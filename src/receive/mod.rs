@@ -275,11 +275,15 @@ impl ReceiverConfig {
             }
             // connect and reconnect on error
             if let Ok(client) = TcpStream::connect(tcp_to) {
-                log::info!("tcp: connected to diode-receive");
-                // reset states
+                log::info!(
+                    "tcp: connected to diode-receive (from: {:?})",
+                    client.local_addr()
+                );
 
+                // initialize tcp session properly
                 let mut tcp = Tcp::new(client, tcp_buffer_size);
 
+                // if we have a first block try to send it
                 let current_session = match first_block {
                     Some(first_block) => {
                         ReceiverConfig::tcp_send_first_block(&mut tcp, first_block)
@@ -287,6 +291,7 @@ impl ReceiverConfig {
                     None => None,
                 };
 
+                // main loop. may return the first block of a session in some corner case
                 first_block = ReceiverConfig::tcp_send_inner_loop(&for_send, tcp, current_session);
 
                 send_log_once = true;
@@ -386,17 +391,22 @@ impl ReceiverConfig {
                             "probably due to a network interrupt"
                         };
 
-                        if block.session_id == 0 {
-                            log::warn!(
-                                "changed session ! {} != expected {}: {}",
-                                block.session_id,
-                                current_session,
-                                extra_info
-                            );
-                        }
+                        log::warn!(
+                            "changed session ! {} != expected {}: {}",
+                            block.session_id,
+                            current_session,
+                            extra_info
+                        );
+
                         // we changed session without receiving last message
                         // need to close this session and restart
-                        return Some(block);
+                        if block.flags.contains(MessageType::Start) {
+                            // this is the first block of the new session
+                            return Some(block);
+                        } else {
+                            // disconnect, we will wait for the start of the next session
+                            return None;
+                        }
                     }
                 }
             }
