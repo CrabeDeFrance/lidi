@@ -1,6 +1,6 @@
 [package]
 name = "diode"
-version = "2.2.1"
+version = "2.2.2"
 edition = "2021"
 license = "GPL-3.0"
 
@@ -17,7 +17,7 @@ nix = { version = "0.29", features = [ "socket", "uio" ]}
 rand_xorshift = "0.3"
 human_bytes = { version = "0.4", default-features = false }
 bitflags = "2"
-thiserror = "1"
+thiserror = "2"
 log4rs = "1"
 metrics = "0.24"
 metrics-exporter-prometheus = "0.16"
@@ -31,7 +31,7 @@ regex = "1"
 
 [dev-dependencies]
 criterion = "0.5"
-pprof = { version = "0.13", features = ["criterion", "flamegraph"] }
+pprof = { version = "0.14", features = ["criterion", "flamegraph"] }
 
 [profile.release]
 lto = true
