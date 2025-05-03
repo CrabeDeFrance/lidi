@@ -60,15 +60,30 @@ fn receive_tcp_loop(config: &file::Config, output_dir: &path::Path) -> Result<()
 
         // try to read files until diode-receive disconnects
         loop {
-            match receive_file(config, &mut client, output_dir) {
-                Ok((filename, total, _stream_end)) => {
-                    log::info!("{filename} received, {total} bytes");
-                }
-                Err(e) => {
-                    log::error!("failed to receive file: {e}");
+            /*
+             * when we call receive_file, we expect to have data to process.
+             * so peek first, to check if connection is closed.
+             */
+            let mut buf: [u8; 1] = [0; 1];
+            match client.peek(&mut buf) {
+                Ok(0) => {
+                    // connection closed, close "diode" and wait for a new connection
                     break;
                 }
-            }
+                Ok(_) => match receive_file(config, &mut client, output_dir) {
+                    Ok((filename, total, _stream_end)) => {
+                        log::info!("{filename} received, {total} bytes");
+                    }
+                    Err(e) => {
+                        log::error!("failed to receive file: {e}");
+                        break;
+                    }
+                },
+                Err(e) => {
+                    log::error!("failed to read data from socket: {e}");
+                    break;
+                }
+            };
         }
     }
 }
