@@ -13,7 +13,7 @@ pub fn build_random_data(data_len: usize) -> Vec<u8> {
 
     // generate some random data
     (0..data_len)
-        .map(|_| rng.gen_range(0..=255) as u8)
+        .map(|_| rng.random_range(0..=255) as u8)
         .collect::<Vec<_>>()
 }
 
