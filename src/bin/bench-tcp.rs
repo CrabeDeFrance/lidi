@@ -29,7 +29,7 @@ fn main() {
         let mut tx_socket = net::TcpStream::connect(to_tcp).expect("can't connect to tcp socket");
 
         let mut data = [0u8; 256000];
-        rand::thread_rng().fill_bytes(&mut data);
+        rand::rng().fill_bytes(&mut data);
 
         loop {
             tx_socket.write_all(&data).expect("can't send data");
