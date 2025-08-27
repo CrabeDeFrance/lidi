@@ -41,7 +41,7 @@ impl Udp {
         // set recv buf size to maximum allowed by system conf
         setsockopt(&socket, RcvBuf, &usize::MAX).map_err(|e| {
             Error::new(
-                std::io::ErrorKind::Other,
+                std::io::ErrorKind::InvalidData,
                 format!("Cannot set recv buffer size on {bind_udp}: {e}"),
             )
         })?;
@@ -49,7 +49,7 @@ impl Udp {
         // check if it is big enough or print warning
         let sock_buffer_size = getsockopt(&socket, RcvBuf).map_err(|e| {
             Error::new(
-                std::io::ErrorKind::Other,
+                std::io::ErrorKind::InvalidData,
                 format!("Cannot get recv buffer size on {bind_udp}: {e}"),
             )
         })?;
@@ -71,7 +71,7 @@ impl Udp {
             // set send buf size to maximum allowed by system conf
             setsockopt(&socket, SndBuf, &usize::MAX).map_err(|e| {
                 Error::new(
-                    std::io::ErrorKind::Other,
+                    std::io::ErrorKind::InvalidData,
                     format!("Cannot set send buffer size on {bind_udp}: {e}"),
                 )
             })?;
@@ -79,7 +79,7 @@ impl Udp {
             // check if it is big enough or print warning
             let sock_buffer_size = getsockopt(&socket, SndBuf).map_err(|e| {
                 Error::new(
-                    std::io::ErrorKind::Other,
+                    std::io::ErrorKind::InvalidData,
                     format!("Cannot get send buffer size on {bind_udp}: {e}"),
                 )
             })?;
