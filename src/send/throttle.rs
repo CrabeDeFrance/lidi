@@ -28,7 +28,12 @@ impl Throttle {
     fn refresh(&mut self) {
         // first compute time since last call
         let elapsed = self.instant.elapsed().as_secs_f64();
-        let diff = elapsed - self.previous_elapsed;
+        let mut diff = elapsed - self.previous_elapsed;
+        // workaround for issue #26, it looks like bandwidth can be exceeded when diff is big.
+        // so remove this diff in that case to be sure bandwidth is enforced.
+        if diff > 1.0 {
+            diff = 0.0;
+        }
         self.previous_elapsed = elapsed;
 
         // add tokens in the bucket
