@@ -94,7 +94,7 @@ def start_diode_receive(context):
         stdout = subprocess.PIPE
         stderr = subprocess.STDOUT
 
-    if context.network_down_after or context.network_up_after or context.network_drop:
+    if context.network_down_after or context.network_up_after or context.network_drop or context.network_max_bandwidth or context.bandwidth_must_not_exceed:
         receiver_bind_udp_port = "6000"
     else:
         receiver_bind_udp_port = "5000"
