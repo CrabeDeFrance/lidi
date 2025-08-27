@@ -16,9 +16,8 @@ Feature: Send simple files with limited network bandwidth
     And diode-file-receive file B in 5 seconds
     And diode-file-receive file C in 5 seconds
 
-  @fail
   Scenario: Ensure bandwidth is never exceeded
     Given network bandwidth must not exceed 1 Mb/s 
     And diode is started with max throughput of 1 Mb/s
-    When diode-file-send file A of size 2MB
+    When diode-file-send file A of size 3MB
     Then diode-file-receive file A in 30 seconds
