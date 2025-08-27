@@ -146,6 +146,12 @@
 <span class="c1"># metrics = &quot;0.0.0.0:9002&quot;</span>
 
 <span class="c1"># core_affinity = [ 1 ]</span>
+
+<span class="c1"># Size of the queue between UDP receiver and block reorder/decoder. Default is 10k packets.</span>
+<span class="c1"># udp_packets_queue_size = 10000</span>
+
+<span class="c1"># Size of the queue between block reorder/decoder and TCP sender. Default is 1k blocks.</span>
+<span class="c1"># tcp_blocks_queue_size = 1000</span>
 </pre></div>
 </div>
 <p>Options are detailed in the following chapters:</p>

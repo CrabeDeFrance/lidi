@@ -57,6 +57,11 @@
 <li class="toctree-l3"><a class="reference internal" href="#diode-receive">diode-receive</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#summary-of-data-loss-metrics-diode-receive-side">Summary of data loss metrics (diode-receive side)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#packet-loss-metrics">Packet loss metrics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#block-loss-metrics">Block loss metrics</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="timers.html">Timers</a></li>
@@ -128,12 +133,13 @@ To enable this system, is it required to provide the url which will be scrapped 
 <ul class="simple">
 <li><p>rx_sessions                   : total number of completed TCP sessions</p></li>
 <li><p>rx_decoding_blocks            : total number of blocks successfully decoded</p></li>
-<li><p>rx_decoding_blocks_err        : total number of blocks lost due to decoding error</p></li>
+<li><p>rx_decoding_blocks_err        : total number of blocks lost due to decoding error: too many packets missing or corrupted at the time of decoding.</p></li>
 <li><p>rx_udp_pkts                   : total number of UDP packets successfully received</p></li>
 <li><p>rx_udp_bytes                  : total number of bytes successfully received from UDP packets</p></li>
 <li><p>rx_udp_deserialize_header_err : total number of lost UDP packets due to corrupted header</p></li>
 <li><p>rx_udp_recv_pkts_err          : total number of read socket failure</p></li>
-<li><p>rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue</p></li>
+<li><p>rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue.  Try to increase “udp_packets_queue_size” receiver config value or reduce throughput with rate limiter or try to optimize RX performance receiver <a class="reference internal" href="performance.html#multithreading"><span class="std std-ref">Multithreading</span></a>.</p></li>
+<li><p>rx_udp_pkts_missing           : total number of missing UDP packets when trying to decode blocks (packet drops, header error or queue full…).</p></li>
 <li><p>rx_tcp_blocks                 : total number of blocks sent on TCP session</p></li>
 <li><p>rx_tcp_blocks_err             : total number of lost blocks, not sent on TCP session (socket error)</p></li>
 <li><p>rx_tcp_bytes                  : total number of bytes sent on TCP session</p></li>
@@ -142,8 +148,35 @@ To enable this system, is it required to provide the url which will be scrapped 
 <li><p>rx_pop_ok_none                : total number of packets sent to reordering module, without finishing a block. Reordering module kept this packet and returned nothing, waiting for other packets to finish a block</p></li>
 <li><p>rx_pop_timeout_with_packets   : the current block did not receive the needed packets to complete it before a timeout occurs. We will try to decode the block and maybe succeed if we received enough data.</p></li>
 <li><p>rx_pop_timeout_none           : a timeout happens when there was no waiting packet for the current block.</p></li>
+<li><p>rx_send_block_err             : total number of lost blocks because it was impossible to push it to the TCP sender queue (most probably because it is full). Try to increase “tcp_blocks_queue_size” receiver config value or adjust sender/receiver TCP throughput.</p></li>
 <li><p>rx_skip_block                 : number of completed blocks dropped because the session is broken (we lost a previous block).</p></li>
 </ul>
+</section>
+</section>
+<section id="summary-of-data-loss-metrics-diode-receive-side">
+<h2>Summary of data loss metrics (diode-receive side)<a class="headerlink" href="#summary-of-data-loss-metrics-diode-receive-side" title="Link to this heading"></a></h2>
+<section id="packet-loss-metrics">
+<h3>Packet loss metrics<a class="headerlink" href="#packet-loss-metrics" title="Link to this heading"></a></h3>
+<p>If too many packets are lost, we will see block decoding error.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>rx_udp_deserialize_header_err</p></li>
+<li><p>rx_udp_send_reorder_err</p></li>
+<li><p>rx_udp_pkts_missing</p></li>
+<li><p>rx_udp_recv_pkts_err (maybe ? not sure of possible error case)</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="block-loss-metrics">
+<h3>Block loss metrics<a class="headerlink" href="#block-loss-metrics" title="Link to this heading"></a></h3>
+<p>If a block is lost, the whole session is lost.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>rx_decoding_blocks_err</p></li>
+<li><p>rx_send_block_err</p></li>
+<li><p>rx_tcp_blocks_err</p></li>
+</ul>
+</div></blockquote>
 </section>
 </section>
 </section>
