@@ -167,6 +167,16 @@ def start_diode(context):
         network_command.append(context.network_drop)
         network_behavior = True
 
+    if context.network_max_bandwidth:
+        network_command.append('--max-bandwidth')
+        network_command.append(context.network_max_bandwidth)
+        network_behavior = True
+
+    if context.bandwidth_must_not_exceed:
+        network_command.append('--abort-on-max-bandwidth')
+        network_command.append(context.bandwidth_must_not_exceed)
+        network_behavior = True
+
     if network_behavior:
         context.proc_network = subprocess.Popen(network_command)
         time.sleep(1)
