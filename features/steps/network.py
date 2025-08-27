@@ -30,4 +30,8 @@ def step_given_network_drop_percent(context, percent):
 
 @given('there is a limited network bandwidth of {bandwidth} Mb/s')
 def step_given_network_limited_bandwidth(context, bandwidth):
-    context.network_max_bandwidth = int(bandwidth)
+    context.network_max_bandwidth = str(int(bandwidth) * 1000000)
+
+@given('network bandwidth must not exceed {bandwidth} Mb/s')
+def step_limited_bandwidth_not_exceeded(context, bandwidth):
+    context.bandwidth_must_not_exceed = str(int(bandwidth) * 1000000)

@@ -45,10 +45,11 @@ def before_scenario(context, _feature):
     context.proc_diode_receive_file = None
     context.proc_throttled_fs = None
 
-    # some possible optons
+    # some possible options
     context.network_down_after = None
     context.network_up_after = None
     context.network_max_bandwidth = None
+    context.max_bandwidth_must_not_exceed = None
     context.network_drop = None
     context.read_rate = None
 

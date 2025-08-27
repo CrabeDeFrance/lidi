@@ -31,6 +31,10 @@ struct Args {
     #[arg(short, long)]
     max_bandwidth: Option<usize>,
 
+    /// Abort if maximum transmission bandwidth (in bits/s) is reached
+    #[arg(short, long)]
+    abort_on_max_bandwidth: Option<usize>,
+
     /// Percentage of lost packets
     #[arg(short, long)]
     loss_rate: Option<usize>,
@@ -182,6 +186,8 @@ struct Stats {
     dropped_packets: usize,
     instant: Instant,
     last_elasped_sed: u64,
+    bandwidth_current: u64,
+    bandwidth_max: u64,
 }
 
 impl Stats {
@@ -194,12 +200,16 @@ impl Stats {
             dropped_packets: 0,
             instant,
             last_elasped_sed: instant.elapsed().as_secs(),
+            bandwidth_current: 0,
+            bandwidth_max: 0,
         }
     }
 
     fn sent(&mut self, len: usize) {
         self.sent_volume += len;
         self.sent_packets += 1;
+        self.bandwidth_current += (len * 8) as u64;
+
         self.print();
     }
 
@@ -213,18 +223,30 @@ impl Stats {
         let elapsed = self.instant.elapsed().as_secs();
         if elapsed != self.last_elasped_sed {
             self.last_elasped_sed = elapsed;
+
+            if self.bandwidth_current > self.bandwidth_max {
+                self.bandwidth_max = self.bandwidth_current;
+            }
+
             log::info!(
-                "Sent bytes: {} Sent packets: {} Dropped bytes: {} Dropped packets: {}",
+                "Sent bytes: {} Sent packets: {} Dropped bytes: {} Dropped packets: {} Last volume: {} Max volume: {}",
                 self.sent_volume,
                 self.sent_packets,
                 self.dropped_volume,
-                self.dropped_packets
+                self.dropped_packets,
+                self.bandwidth_current,
+                self.bandwidth_max,
             );
             self.sent_volume = 0;
             self.dropped_volume = 0;
             self.sent_packets = 0;
             self.dropped_packets = 0;
+            self.bandwidth_current = 0;
         }
+    }
+
+    fn max_bandwidth(&self) -> usize {
+        self.bandwidth_max as usize
     }
 }
 
@@ -283,6 +305,12 @@ fn main() {
 
         if let Some(ref mut max_bandwidth) = max_bandwidth {
             send_packet &= max_bandwidth.recv(len);
+        }
+
+        if let Some(max_bw) = args.abort_on_max_bandwidth {
+            if stats.max_bandwidth() > max_bw {
+                panic!("max bandwidth reached: {} > {max_bw}", stats.max_bandwidth());
+            }
         }
 
         if send_packet {
