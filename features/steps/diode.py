@@ -117,6 +117,28 @@ def stop_diode_receive(context):
     if context.proc_diode_receive:
         context.proc_diode_receive.kill()
 
+def start_diode_file_receive(context):
+    if context.quiet:
+        stdout = subprocess.DEVNULL
+        stderr = subprocess.DEVNULL
+    else:
+        stdout = subprocess.PIPE
+        stderr = subprocess.STDOUT
+
+    # start diode-receive-file (tcp server)
+    diode_receive_file_command = [f'{context.bin_dir}/diode-receive-file', '--bind-tcp', '127.0.0.1:7000', context.receive_dir.name]
+    if context.log_config_diode_receive_file:
+        diode_receive_file_command.append('--log-config')
+        diode_receive_file_command.append(context.log_config_diode_receive_file)
+
+    context.proc_diode_receive_file = subprocess.Popen(
+        diode_receive_file_command,
+        stdout=stdout, stderr=stderr)
+
+def stop_diode_file_receive(context):
+    if context.proc_diode_receive_file:
+        context.proc_diode_receive_file.kill()
+
 def start_diode_send(context):
     if context.quiet:
         stdout = subprocess.DEVNULL
@@ -181,15 +203,7 @@ def start_diode(context):
         context.proc_network = subprocess.Popen(network_command)
         time.sleep(1)
 
-    # start diode-receive-file (tcp server)
-    diode_receive_file_command = [f'{context.bin_dir}/diode-receive-file', '--bind-tcp', '127.0.0.1:7000', context.receive_dir.name]
-    if context.log_config_diode_receive_file:
-        diode_receive_file_command.append('--log-config')
-        diode_receive_file_command.append(context.log_config_diode_receive_file)
-
-    context.proc_diode_receive_file = subprocess.Popen(
-        diode_receive_file_command,
-        stdout=stdout, stderr=stderr)
+    start_diode_file_receive(context)
 
     time.sleep(1)
 
@@ -241,6 +255,13 @@ def step_impl(context):
 def step_impl(context):
     stop_diode_send(context)
     start_diode_send(context)
+
+@when('diode-file-receive is restarted')
+def step_impl(context):
+    stop_diode_file_receive(context)
+    # wait some time to prevent address already in use if restarted too quickly
+    time.sleep(5)
+    start_diode_file_receive(context)
 
 @when('diode-send-dir is started')
 def step_impl(context):

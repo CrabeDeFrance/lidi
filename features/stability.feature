@@ -36,3 +36,12 @@ Feature: Test ability of lidi to restart properly by itself
     Then diode-file-receive file A in 15 seconds
     Then diode-file-receive file C in 15 seconds
 
+  @fail
+  Scenario: Send one file restart file_receiver then send another file, no file lost
+    Given there is a limited network bandwidth of 100 Mb/s
+    And diode is started with max throughput of 90 Mb/s
+    When diode-file-send file A of size 100KB
+    And diode-file-receive file A in 5 seconds
+    And diode-file-receive is restarted
+    And diode-file-send file B of size 100KB
+    Then diode-file-receive file B in 5 seconds
