@@ -25,6 +25,7 @@
 use core_affinity::CoreId;
 use crossbeam_channel::{Receiver, Sender};
 use log::debug;
+use metrics::gauge;
 use metrics::{counter, histogram};
 use packet::Packet;
 
@@ -231,6 +232,13 @@ impl ReceiverConfig {
             .spawn(move || ReceiverConfig::tcp_send_loop(for_send, tcp_to, tcp_buffer_size))?;
         threads.push(rx_tcp);
 
+        let for_reorder = self.for_reorder.clone();
+        let for_send = self.for_send.clone();
+        let metrics = thread::Builder::new()
+            .name("lidi_rx_metrics".to_string())
+            .spawn(move || ReceiverConfig::metrics_loop(for_reorder, for_send))?;
+        threads.push(metrics);
+
         let from_udp = self.from_udp;
         let udp_mtu = self.from_udp_mtu;
         let block_size = self.encoding_block_size + u64::from(self.repair_block_size);
@@ -285,6 +293,14 @@ impl ReceiverConfig {
             } else {
                 std::thread::sleep(Duration::from_millis(100));
             }
+        }
+    }
+
+    fn metrics_loop(for_reorder: Receiver<Packet>, for_send: Receiver<ReceiverBlock>) {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            gauge!("rx_udp_send_queue_len").set(for_send.len() as f64);
+            gauge!("rx_udp_reorder_queue_len").set(for_reorder.len() as f64);
         }
     }
 
