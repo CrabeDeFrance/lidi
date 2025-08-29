@@ -20,7 +20,7 @@ pub struct Tcp {
 impl Tcp {
     // buffer_size: receiver.to_buffer_size
     pub fn new(mut client: net::TcpStream, buffer_size: usize) -> Self {
-        log::debug!("udp : starting transfer");
+        log::debug!("tcp : starting transfer");
 
         if let Err(_e) = Tcp::configure(&mut client, buffer_size) {}
 

@@ -269,24 +269,11 @@ impl ReceiverConfig {
         Ok(())
     }
 
-    // entry point of send tcp thread
-    // this loop runs over sessions (tcp connections)
-    fn tcp_send_loop(
-        for_send: Receiver<ReceiverBlock>,
-        tcp_to: net::SocketAddr,
-        tcp_buffer_size: usize,
-    ) {
-        // first block to send after reconnecting
-        let mut send_log_once = true;
-
-        // if there is a block to send at start
-        let mut first_block: Option<ReceiverBlock> = None;
-
+    fn tcp_connect(tcp_to: net::SocketAddr, tcp_buffer_size: usize) -> Tcp {
         loop {
-            if send_log_once {
-                log::info!("tcp: connecting to {tcp_to}");
-            }
-            // connect and reconnect on error
+            log::info!("tcp: connecting to {tcp_to}");
+            // initialize tcp session properly
+            // connect only when a new block has to be sent
             if let Ok(client) = TcpStream::connect(tcp_to) {
                 log::info!(
                     "tcp: connected to diode-receive (from: {:?})",
@@ -294,80 +281,22 @@ impl ReceiverConfig {
                 );
 
                 // initialize tcp session properly
-                let mut tcp = Tcp::new(client, tcp_buffer_size);
-
-                // if we have a first block try to send it
-                let current_session = match first_block {
-                    Some(first_block) => {
-                        ReceiverConfig::tcp_send_first_block(&mut tcp, first_block)
-                    }
-                    None => None,
-                };
-
-                // main loop. may return the first block of a session in some corner case
-                first_block = ReceiverConfig::tcp_send_inner_loop(&for_send, tcp, current_session);
-
-                send_log_once = true;
+                return Tcp::new(client, tcp_buffer_size);
             } else {
-                send_log_once = false;
                 std::thread::sleep(Duration::from_millis(100));
             }
         }
     }
 
-    // return None if we must reconnect, or current_session id to follow
-    fn tcp_send_first_block(tcp: &mut Tcp, first_block: ReceiverBlock) -> Option<u8> {
-        log::debug!(
-            "send first block: session {} block {} flags {}",
-            first_block.session_id,
-            first_block.block_id,
-            first_block.flags
-        );
-        let data = match first_block.block {
-            None => {
-                // too bad, first block is not correct
-                log::warn!(
-                    "tcp: session {} lost first block {} flags {}: session is corrupted, skip this session and wait for the next",
-                    first_block.session_id,
-                    first_block.block_id,
-                    first_block.flags
-                );
-                // we drop this block
-                counter!("rx_skip_block").increment(1);
-                return None;
-            }
-
-            Some(data) => data,
-        };
-
-        // everything ok, send this block
-        if let Err(e) =
-            ReceiverConfig::tcp_send(tcp, first_block.block_id, first_block.flags, &data)
-        {
-            log::warn!("can't send block => reset tcp: {e}");
-            return None;
-        }
-
-        // if last block, close tcp session
-        if first_block.flags.contains(MessageType::End) {
-            if let Err(e) = tcp.flush() {
-                log::warn!("tcp: cant flush final data: {e}");
-            }
-            // last block : quit to reconnect
-            log::debug!("quit to force reconnect");
-            return None;
-        }
-
-        // we want to follow this session, return the current session_id
-        Some(first_block.session_id)
-    }
-
-    fn tcp_send_inner_loop(
-        for_send: &Receiver<ReceiverBlock>,
-        mut tcp: Tcp,
-        // what is the current session. if the session changes, we have to reconnect
-        mut current_session: Option<u8>,
-    ) -> Option<ReceiverBlock> {
+    // entry point of send tcp thread
+    // this loop runs over sessions (tcp connections)
+    fn tcp_send_loop(
+        for_send: Receiver<ReceiverBlock>,
+        tcp_to: net::SocketAddr,
+        tcp_buffer_size: usize,
+    ) {
+        let mut current_tcp = None;
+        // if there is a block to send at start
         loop {
             let block = match for_send.recv() {
                 Err(e) => {
@@ -385,60 +314,50 @@ impl ReceiverConfig {
                 }
             };
 
-            // check if we received a block for a different session
-            match current_session {
-                None => {
-                    if block.flags.contains(MessageType::Start) {
-                        current_session = Some(block.session_id);
-                    } else {
-                        // we are waiting the next session start to init the state
-                        counter!("rx_skip_block").increment(1);
-                        continue;
-                    }
-                }
-                Some(current_session) => {
-                    if block.session_id != current_session {
-                        let extra_info = if block.session_id == 0 {
-                            "probably due to a diode-send restart"
-                        } else {
-                            "probably due to a network interrupt"
-                        };
+            // get tcp session to use
+            let tcp = if block.flags.contains(MessageType::Start) {
+                current_tcp = Some(Self::tcp_connect(tcp_to, tcp_buffer_size));
+                current_tcp.as_mut().unwrap()
+            } else if let Some(tcp) = &mut current_tcp {
+                tcp
+            } else {
+                // no connection and not init block : drop it
+                debug!(
+                    "TCP session not established: drop session {} block {} flags {}",
+                    block.session_id, block.block_id, block.flags
+                );
+                continue;
+            };
 
-                        log::warn!(
-                            "changed session ! {} != expected {}: {}",
-                            block.session_id,
-                            current_session,
-                            extra_info
-                        );
-
-                        // we changed session without receiving last message
-                        // need to close this session and restart
-                        if block.flags.contains(MessageType::Start) {
-                            // this is the first block of the new session
-                            return Some(block);
-                        } else {
-                            // disconnect, we will wait for the start of the next session
-                            return None;
-                        }
-                    }
-                }
-            }
-
-            // check if this block was properly decoded
+            // send this block
+            log::debug!(
+                "send block: session {} block {} flags {}",
+                block.session_id,
+                block.block_id,
+                block.flags
+            );
             let data = match block.block {
                 None => {
-                    log::warn!("tcp: session {} lost block {}: session is corrupted, skip this session and wait for the next", block.session_id, block.block_id);
-                    // what to do if a block is not decoded ???
-                    // could be configured, but for now, we disconnect
-                    return None;
+                    // too bad, first block is not correct
+                    log::warn!(
+                    "tcp: session {} lost first block {} flags {}: session is corrupted, skip this session and wait for the next",
+                    block.session_id,
+                    block.block_id,
+                    block.flags
+                );
+                    // we drop this block
+                    counter!("rx_skip_block").increment(1);
+                    continue;
                 }
+
                 Some(data) => data,
             };
 
             // everything ok, send this block
-            if let Err(e) = ReceiverConfig::tcp_send(&mut tcp, block.block_id, block.flags, &data) {
+            if let Err(e) = ReceiverConfig::tcp_send(tcp, block.block_id, block.flags, &data) {
                 log::warn!("can't send block => reset tcp: {e}");
-                return None;
+                current_tcp = None;
+                continue;
             }
 
             // if last block, close tcp session
@@ -447,12 +366,11 @@ impl ReceiverConfig {
                     log::warn!("tcp: cant flush final data: {e}");
                 }
                 // last block : quit to reconnect
-                log::debug!("quit to force reconnect");
-                return None;
+                log::debug!("disconnect to force reconnect");
+                current_tcp = None;
+                continue;
             }
         }
-
-        // this loop exits on protocol abort or data end
     }
 
     fn tcp_send(tcp: &mut Tcp, block_id: u8, flags: MessageType, block: &[u8]) -> Result<()> {
