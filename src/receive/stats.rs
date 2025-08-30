@@ -86,3 +86,10 @@ pub fn stats_thread_usage(prev: &mut HashMap<String, (u64, u64)>, elapsed_secs: 
 
     stats_fill_thread_usage(&me, prev);
 }
+
+pub fn stats_proc_snmp() {
+    if let Ok(snmp) = procfs::net::snmp() {
+        gauge!("snmp_ip_in_discards").set(snmp.ip_in_discards as f64);
+        gauge!("snmp_udp_in_errors").set(snmp.udp_in_errors as f64);
+    }
+}
