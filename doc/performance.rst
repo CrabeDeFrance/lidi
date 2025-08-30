@@ -63,9 +63,12 @@ Then to configure Lidi `core_affinity` parameter with the same list:
 .. code-block::
 
    [receiver]
-   core_affinity = [ <cpu number>, <cpu number> ]
+   core_affinity = [ <core number>, <core number> ]
 
-This array must have the same number of values (core ids) than the number of ports (threads). See :ref:`multithreading` for more details.
+This array must have at least the same number of values (core ids) than the number of ports (threads).
+There may up to 2 extra core ids to pin both `reorder/decode` and `tcp` threads. 
+The first extra ID will be assigned to `reorder/decode` thread and the last one will be assigned to `TCP` thread.
+See :ref:`multithreading` for more details about UDP RX threads and ports.
 
 
 Optimizing CPU performances

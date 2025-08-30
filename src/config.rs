@@ -45,7 +45,7 @@ pub struct DiodeReceiverConfig {
     pub block_expiration_timeout: Option<u32>,
     /// Session expiration delay. Time to wait before changing session (in s). Default is equal to 2 x heartbeat interval.
     pub session_expiration_timeout: Option<u32>,
-    /// List of core affinity. One different core per thread. Each core id must exists.
+    /// List of core affinity. One different core id per thread. Each core id must exists.
     pub core_affinity: Option<Vec<usize>>,
     /// prometheus port (receiver)
     pub metrics: Option<String>,
@@ -66,8 +66,9 @@ impl DiodeConfig {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{e}")))?;
 
         DiodeConfig::check_mtu(config.udp_mtu)?;
-        DiodeConfig::check_threads_and_ports(&config)?;
-        DiodeConfig::check_threads_and_core_affinity(&config)?;
+        DiodeConfig::check_ports(&config)?;
+        DiodeConfig::check_core_affinity(&config)?;
+        DiodeConfig::check_ports_and_core_affinity(&config)?;
 
         Ok(config)
     }
@@ -83,7 +84,8 @@ impl DiodeConfig {
         Ok(())
     }
 
-    fn check_threads_and_ports(config: &DiodeConfig) -> Result<()> {
+    // check if port list is valid (no duplicated values)
+    fn check_ports(config: &DiodeConfig) -> Result<()> {
         if config.udp_port.is_empty() {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -107,7 +109,8 @@ impl DiodeConfig {
         Ok(())
     }
 
-    fn check_threads_and_core_affinity(config: &DiodeConfig) -> Result<()> {
+    // check if core_affinity list is valid (no duplicated values and core id exists)
+    fn check_core_affinity(config: &DiodeConfig) -> Result<()> {
         if let Some(receiver) = &config.receiver {
             if let Some(core_affinity) = &receiver.core_affinity {
                 let mut dedup_list = core_affinity.clone();
@@ -148,6 +151,34 @@ impl DiodeConfig {
             }
         }
 
+        Ok(())
+    }
+
+    // compare port list and core affinity list
+    fn check_ports_and_core_affinity(config: &DiodeConfig) -> Result<()> {
+        if let Some(receiver) = &config.receiver {
+            if let Some(core_affinity) = &receiver.core_affinity {
+                if core_affinity.len() < config.udp_port.len() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        format!(
+                            "Invalid 'receiver.core_affinity' list: there are not enough core ids ({}) for all {} rx threads ({:?})",
+                            core_affinity.len(), config.udp_port.len(), config.udp_port
+                        ),
+                    ));
+                }
+
+                if core_affinity.len() > config.udp_port.len() + 2 {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        format!(
+                            "Invalid 'receiver.core_affinity' list: there are too many core ids ({}) for rx threads ({:?}) plus the 2 extra threads (reorder/decode & tcp)",
+                            core_affinity.len(), config.udp_port.len()
+                        ),
+                    ));
+                }
+            }
+        }
         Ok(())
     }
 }

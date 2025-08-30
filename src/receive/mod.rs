@@ -212,9 +212,24 @@ impl ReceiverConfig {
             nb_threads as u8,
         );
 
+        let core_list = self.core_affinity.clone();
+        let port_list_len = self.udp_port_list.len();
         let rx_decode = thread::Builder::new()
             .name("lidi_rx_reorder_decode".to_string())
             .spawn(move || {
+                if let Some(core_affinity) = core_list {
+                    if core_affinity.len() == port_list_len + 1
+                        || core_affinity.len() == port_list_len + 2
+                    {
+                        let id = core_affinity[port_list_len];
+                        if !core_affinity::set_for_current(CoreId { id }) {
+                            log::error!("Reorder/decode: can't set core affinity {id}");
+                        } else {
+                            log::info!("Reorder/decode: core affinity set to {id}");
+                        }
+                    }
+                }
+
                 ReceiverConfig::reorder_decoding_loop(
                     for_reorder,
                     to_send,
@@ -227,9 +242,23 @@ impl ReceiverConfig {
             })?;
         threads.push(rx_decode);
 
+        let core_list = self.core_affinity.clone();
         let rx_tcp = thread::Builder::new()
             .name("lidi_rx_tcp".to_string())
-            .spawn(move || ReceiverConfig::tcp_send_loop(for_send, tcp_to, tcp_buffer_size))?;
+            .spawn(move || {
+                if let Some(core_affinity) = core_list {
+                    if core_affinity.len() == port_list_len + 2 {
+                        let id = core_affinity[port_list_len + 1];
+                        if !core_affinity::set_for_current(CoreId { id }) {
+                            log::error!("tcp: can't set core affinity {id}");
+                        } else {
+                            log::info!("tcp: core affinity set to {id}");
+                        }
+                    }
+                }
+
+                ReceiverConfig::tcp_send_loop(for_send, tcp_to, tcp_buffer_size);
+            })?;
         threads.push(rx_tcp);
 
         let for_reorder = self.for_reorder.clone();
@@ -257,9 +286,9 @@ impl ReceiverConfig {
                     if let Some(core_affinity) = core_list {
                         let id = core_affinity[i];
                         if !core_affinity::set_for_current(CoreId { id }) {
-                            log::error!("Can't set core affinity {id}");
+                            log::error!("udp: can't set core affinity {id}");
                         } else {
-                            log::info!("Core affinity set to {id}");
+                            log::info!("udp: core affinity set to {id}");
                         }
                     }
 
