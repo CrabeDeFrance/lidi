@@ -25,8 +25,7 @@
 use core_affinity::CoreId;
 use crossbeam_channel::{Receiver, Sender};
 use log::debug;
-use metrics::gauge;
-use metrics::{counter, histogram};
+use metrics::{counter, gauge, histogram};
 use packet::Packet;
 
 use crate::config::DiodeConfig;
@@ -34,8 +33,11 @@ use crate::config::MAX_MTU;
 use crate::protocol::LidiParameters;
 use crate::protocol::{Header, MessageType};
 use crate::receive::decoding::Decoding;
+use crate::receive::stats::stats_proc_snmp;
+use crate::receive::stats::stats_thread_usage;
 use crate::{protocol, receive::reorder::Reorder};
 use raptorq::{EncodingPacket, ObjectTransmissionInformation};
+use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
@@ -51,6 +53,7 @@ pub mod decoding;
 mod heartbeat;
 mod packet;
 mod reorder;
+mod stats;
 mod tcp;
 
 use crate::udp::Udp;
@@ -326,10 +329,14 @@ impl ReceiverConfig {
     }
 
     fn metrics_loop(for_reorder: Receiver<Packet>, for_send: Receiver<ReceiverBlock>) {
+        let metrics_interval = 1;
+        let mut thread_usage_data = HashMap::new();
         loop {
-            std::thread::sleep(std::time::Duration::from_secs(1));
+            std::thread::sleep(std::time::Duration::from_secs(metrics_interval));
             gauge!("rx_udp_send_queue_len").set(for_send.len() as f64);
             gauge!("rx_udp_reorder_queue_len").set(for_reorder.len() as f64);
+            stats_thread_usage(&mut thread_usage_data, metrics_interval as f64);
+            stats_proc_snmp();
         }
     }
 
