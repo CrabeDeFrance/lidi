@@ -64,6 +64,9 @@ All stats of diode-receive starts with `rx`.
 * rx_pop_timeout_none           : a timeout happens when there was no waiting packet for the current block.
 * rx_send_block_err             : total number of lost blocks because it was impossible to push it to the TCP sender queue (most probably because it is full). Try to increase "tcp_blocks_queue_size" receiver config value or adjust sender/receiver TCP throughput.
 * rx_skip_block                 : number of completed blocks dropped because the session is broken (we lost a previous block).
+* snmp_ip_in_discards           : From kernel: the number of input IP datagrams for which no problems were encountered to prevent their continued processing, but which were discarded (e.g., for lack of buffer space). See RFC 1213.
+* snmp_udp_in_errors            : From kernel: the number of received UDP datagrams that could not be delivered for reasons other than the lack of an application at the destination port. See RFC 1213.
+* cpu_usage                     : Same as top. Label is thread name.
 
 Summary of data loss metrics (diode-receive side)
 -------------------------------------------------
