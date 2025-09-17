@@ -22,17 +22,9 @@ impl Udp {
         role: &str,
     ) -> std::io::Result<Self> {
         if let Some(to_udp) = to_udp {
-            log::info!(
-                "sending UDP {role} packets to {} with MTU {}",
-                to_udp,
-                udp_mtu
-            );
+            log::info!("sending UDP {role} packets to {to_udp} with MTU {udp_mtu}");
         } else {
-            log::info!(
-                "listening for UDP packets at {} with MTU {}",
-                bind_udp,
-                udp_mtu
-            )
+            log::info!("listening for UDP packets at {bind_udp} with MTU {udp_mtu}")
         }
 
         let socket = UdpSocket::bind(bind_udp)

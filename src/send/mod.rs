@@ -364,10 +364,7 @@ impl SenderConfig {
                 .name(format!("lidi_tx_udp_{i}"))
                 .spawn(move || {
                     log::info!(
-                        "sending UDP traffic to {} with MTU {} (bound to {})",
-                        to_udp,
-                        to_udp_mtu,
-                        bind_udp
+                        "sending UDP traffic to {to_udp} with MTU {to_udp_mtu} (bound to {bind_udp})"
                     );
 
                     let encoding = Encoding::new(object_transmission_info, repair_block_size);

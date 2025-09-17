@@ -50,7 +50,7 @@ fn main() {
     init_logger();
 
     if let Some(to_tcp) = to_tcp {
-        log::debug!("TCP connect to {}", to_tcp);
+        log::debug!("TCP connect to {to_tcp}");
         let diode = net::TcpStream::connect(to_tcp).expect("TCP connect");
         start(diode, buffer_size)
     } else {

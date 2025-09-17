@@ -96,14 +96,14 @@ fn read_udp(max_rx: &mut [u32; 10]) -> io::Result<()> {
                                             );
                                         }
                                         Err(e) => {
-                                            eprintln!("Error parsing hex: {}", e);
+                                            eprintln!("Error parsing hex: {e}");
                                         }
                                     }
                                 }
                             }
                         }
                         Err(e) => {
-                            eprintln!("Error parsing hex: {}", e);
+                            eprintln!("Error parsing hex: {e}");
                         }
                     }
                 } else {
@@ -111,7 +111,7 @@ fn read_udp(max_rx: &mut [u32; 10]) -> io::Result<()> {
                 }
             }
             Err(e) => {
-                eprintln!("Error parsing input: {}", e);
+                eprintln!("Error parsing input: {e}");
             }
         }
     });
