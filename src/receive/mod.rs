@@ -66,6 +66,17 @@ pub struct ReceiverBlock {
     block: Option<Vec<u8>>,
 }
 
+impl ReceiverBlock {
+    pub fn new(flags: MessageType, session_id: u8) -> Self {
+        ReceiverBlock {
+            flags,
+            session_id,
+            block_id: 0,
+            block: None,
+        }
+    }
+}
+
 /// An instance of this data structure is shared by workers to synchronize them and to access
 /// communication channels
 pub struct ReceiverConfig {
@@ -366,9 +377,22 @@ impl ReceiverConfig {
                 }
             };
 
+            // check is session did not changed
+            if let Some((_tcp, session_id)) = current_tcp.as_ref() {
+                if *session_id != block.session_id {
+                    // got a block for another session id without receiveing end flag ...
+                    // drop current tcp connection to reconnect
+                    debug!(
+                        "TCP session established for another session id {session_id}: session {} block {} flags {}",
+                        block.session_id, block.block_id, block.flags
+                    );
+                    current_tcp = None;
+                }
+            }
+
             // get tcp session to use
-            let tcp = if block.flags.contains(MessageType::Start) {
-                current_tcp = Some(Self::tcp_connect(tcp_to, tcp_buffer_size));
+            let (tcp, _current_session_id) = if block.flags.contains(MessageType::Start) {
+                current_tcp = Some((Self::tcp_connect(tcp_to, tcp_buffer_size), block.session_id));
                 current_tcp.as_mut().unwrap()
             } else if let Some(tcp) = &mut current_tcp {
                 tcp
@@ -461,6 +485,12 @@ impl ReceiverConfig {
         block_expiration_timeout: Duration, // config.block_expiration_timeout
         parameters: LidiParameters,
     ) {
+        enum TransferState {
+            InProgress,
+            Error(u8),
+            Closed(u8),
+        }
+
         let nb_normal_packets = protocol::nb_encoding_packets(&object_transmission_info);
         let nb_repair_packets =
             protocol::nb_repair_packets(&object_transmission_info, repair_block_size);
@@ -480,6 +510,8 @@ impl ReceiverConfig {
 
         // if we received init - if not, we will initialize reorder with first block received
         let mut reorder_initialized = false;
+
+        let mut state = TransferState::InProgress;
 
         loop {
             let (flags, session_id, block_id, encoded_packets) = if test_pop_first {
@@ -569,18 +601,64 @@ impl ReceiverConfig {
                 }
             };
 
-            let block = Self::decode(&decoding, flags, block_id, session_id, encoded_packets);
-            if let Err(e) = to_send.try_send(block) {
-                counter!("rx_send_block_err").increment(1);
-                match e {
-                    crossbeam_channel::TrySendError::Disconnected(_) => {
-                        log::warn!("can't send block to tcp: queue disconnected");
+            match state {
+                TransferState::InProgress => {
+                    let block =
+                        Self::decode(&decoding, flags, block_id, session_id, encoded_packets);
+                    if Self::reorder_send(block, &to_send).is_err() {
+                        state = TransferState::Error(session_id);
                     }
-                    crossbeam_channel::TrySendError::Full(_) => {
-                        log::debug!("can't send block to tcp: queue full");
+                }
+                TransferState::Error(dropped_session_id) => {
+                    if dropped_session_id == session_id {
+                        // not mandatory, but try to send a end block to close this session early
+                        let end_block = ReceiverBlock::new(MessageType::End, session_id);
+                        if Self::reorder_send(end_block, &to_send).is_ok() {
+                            state = TransferState::Closed(session_id);
+                        }
+                    } else {
+                        // different session, reset state and send this block
+                        state = TransferState::InProgress;
+                        let block =
+                            Self::decode(&decoding, flags, block_id, session_id, encoded_packets);
+                        if Self::reorder_send(block, &to_send).is_err() {
+                            state = TransferState::Error(session_id);
+                        }
+                    }
+                }
+                TransferState::Closed(dropped_session_id) => {
+                    if dropped_session_id == session_id {
+                        // ignore this block until next session
+                        counter!("rx_send_block_err").increment(1);
+                    } else {
+                        // different session, reset state and send this block
+                        state = TransferState::InProgress;
+                        let block =
+                            Self::decode(&decoding, flags, block_id, session_id, encoded_packets);
+                        if Self::reorder_send(block, &to_send).is_err() {
+                            state = TransferState::Error(session_id);
+                        }
                     }
                 }
             }
+        }
+    }
+
+    fn reorder_send(block: ReceiverBlock, to_send: &Sender<ReceiverBlock>) -> Result<()> {
+        if let Err(e) = to_send.try_send(block) {
+            counter!("rx_send_block_err").increment(1);
+            match e {
+                crossbeam_channel::TrySendError::Disconnected(_) => {
+                    log::warn!("can't send block to tcp: queue disconnected - session is lost, ignoring all blocks until next session");
+                }
+                crossbeam_channel::TrySendError::Full(_) => {
+                    log::info!("can't send block to tcp: queue full - session is lost, ignoring all blocks until next session");
+                }
+            }
+            Err(Error::new(ErrorKind::BrokenPipe, format!("{e}")))
+        } else {
+            counter!("rx_send_block").increment(1);
+            Ok(())
         }
     }
 
