@@ -96,7 +96,8 @@ TCP sender component
 """"""""""""""""""""
 
 * rx_tcp_send_queue_len         : number of blocks waiting in send_queue (between reorder/decoding thread and tcp sender thread)
-* rx_tcp_skip_block             : total number of blocks received and dropped by the TCP send component (previous decoding issue). Should be equal to rx_decoding_blocks_err.
+* rx_tcp_drop_block             : total number of blocks received and dropped by the TCP send component because TCP session is not established (init block for this session was missing).
+* rx_tcp_no_block               : total number of messages received and dropped by the TCP send component due to decoding issue. Should be close to rx_decoding_blocks_err.
 * rx_tcp_blocks                 : total number of blocks sent on TCP session
 * rx_tcp_blocks_err             : total number of lost blocks, not sent on TCP session (socket error)
 * rx_tcp_bytes                  : total number of bytes sent on TCP session

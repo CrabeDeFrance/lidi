@@ -357,7 +357,7 @@ impl ReceiverConfig {
                 }
                 Ok(block) => {
                     log::debug!(
-                        "read block: session {} block {} flags {}",
+                        "tcp: session {} received block {} flags {}",
                         block.session_id,
                         block.block_id,
                         block.flags
@@ -373,11 +373,14 @@ impl ReceiverConfig {
             } else if let Some(tcp) = &mut current_tcp {
                 tcp
             } else {
-                // no connection and not init block : drop it
-                debug!(
-                    "TCP session not established: drop session {} block {} flags {}",
-                    block.session_id, block.block_id, block.flags
+                // no connection and not an init block : drop it
+                log::warn!(
+                    "tcp: session {} not established (init block missing): drop block {} flags {}",
+                    block.session_id,
+                    block.block_id,
+                    block.flags
                 );
+                counter!("rx_tcp_drop_block").increment(1);
                 continue;
             };
 
@@ -396,8 +399,7 @@ impl ReceiverConfig {
                         block.block_id,
                         block.flags
                     );
-                    // we drop this block
-                    counter!("rx_tcp_skip_block").increment(1);
+                    counter!("rx_tcp_no_block").increment(1);
                     continue;
                 }
 
