@@ -59,7 +59,7 @@ impl Tcp {
             "client : finished transfer, {} bytes transmitted",
             self.transmitted
         );
-        counter!("rx_sessions").increment(1);
+        counter!("rx_tcp_sessions").increment(1);
         self.bufwriter.flush()
     }
 

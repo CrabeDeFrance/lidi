@@ -333,8 +333,8 @@ impl ReceiverConfig {
         let mut thread_usage_data = HashMap::new();
         loop {
             std::thread::sleep(std::time::Duration::from_secs(metrics_interval));
-            gauge!("rx_udp_send_queue_len").set(for_send.len() as f64);
-            gauge!("rx_udp_reorder_queue_len").set(for_reorder.len() as f64);
+            gauge!("rx_tcp_send_queue_len").set(for_send.len() as f64);
+            gauge!("rx_pop_reorder_queue_len").set(for_reorder.len() as f64);
             stats_thread_usage(&mut thread_usage_data, metrics_interval as f64);
             stats_proc_snmp();
         }
@@ -390,15 +390,14 @@ impl ReceiverConfig {
             );
             let data = match block.block {
                 None => {
-                    // too bad, first block is not correct
                     log::warn!(
-                    "tcp: session {} lost first block {} flags {}: session is corrupted, skip this session and wait for the next",
-                    block.session_id,
-                    block.block_id,
-                    block.flags
-                );
+                        "tcp: session {} lost block {} flags {}",
+                        block.session_id,
+                        block.block_id,
+                        block.flags
+                    );
                     // we drop this block
-                    counter!("rx_skip_block").increment(1);
+                    counter!("rx_tcp_skip_block").increment(1);
                     continue;
                 }
 
@@ -531,8 +530,8 @@ impl ReceiverConfig {
                         }
 
                         // this is a data packet
-                        counter!("rx_udp_pkts").increment(1);
-                        counter!("rx_udp_bytes").increment(payload.len() as _);
+                        counter!("rx_pop_udp_pkts").increment(1);
+                        counter!("rx_pop_udp_bytes").increment(payload.len() as _);
 
                         if !reorder_initialized {
                             reorder.init(header);
@@ -571,7 +570,7 @@ impl ReceiverConfig {
 
             let block = Self::decode(&decoding, flags, block_id, session_id, encoded_packets);
             if let Err(e) = to_send.try_send(block) {
-                counter!("rx_send_block_err").increment(1);
+                counter!("rx_decoding_send_block_err").increment(1);
                 match e {
                     crossbeam_channel::TrySendError::Disconnected(_) => {
                         log::warn!("can't send block to tcp: queue disconnected");
@@ -612,8 +611,8 @@ impl ReceiverConfig {
                 flags
             );
 
-            counter!("rx_udp_pkts_missing").increment(missing_packets as u64);
-            histogram!("rx_udp_pkts_missing_histogram", "pkts_missing" => missing_packets.to_string())
+            counter!("rx_decoding_pkts_missing").increment(missing_packets as u64);
+            histogram!("rx_decoding_pkts_missing_histogram", "pkts_missing" => missing_packets.to_string())
                 .record(1);
         }
 

@@ -59,8 +59,6 @@ Processing pipeline is:
 UDP receive component
 """"""""""""""""""""""
 
-* rx_udp_pkts                   : total number of UDP packets successfully received 
-* rx_udp_bytes                  : total number of bytes successfully received from UDP packets
 * rx_udp_deserialize_header_err : total number of lost UDP packets due to corrupted header
 * rx_udp_recv_pkts_err          : total number of read socket failure
 * rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue.  Try to increase "udp_packets_queue_size" receiver config value or reduce throughput with rate limiter or try to optimize RX performance receiver :ref:`multithreading`.
@@ -70,7 +68,9 @@ Reorder and decoder component
 
 Reorder queue :
 
-* rx_udp_reorder_queue_len      : number of packets waiting in reorder queue (between udp receive thread and reorder/decoding thread)
+* rx_pop_reorder_queue_len      : number of packets waiting in reorder queue (between udp receive thread and reorder/decoding thread)
+* rx_pop_udp_pkts               : total number of UDP packets successfully received 
+* rx_pop_udp_bytes              : total number of bytes successfully received from UDP packets
 * rx_pop_ok_packets             : total number of packets sent to reordering module and which completed blocks. Reordering module used this packet to complete a block and returns it. This value should be equal or inferior to rx_decoding_blocks. (Inferior because we can sometimes successfully decode a block even if we do not have all packets (see rx_pop_timeout_with_packets).
 * rx_pop_ok_none                : total number of packets sent to reordering module, without finishing a block. Reordering module kept this packet and returned nothing, waiting for other packets to finish a block
 * rx_pop_timeout_with_packets   : the current block did not receive the needed packets to complete it before a timeout occurs. We will try to decode the block and maybe succeed if we received enough data.
@@ -78,30 +78,30 @@ Reorder queue :
 
 Reorder component :
 
-* reorder_flush_block_complete   : next block is returned because we received all packets for this block
-* reorder_flush_block_overflow   : next block is returned because there are too many active blocks (50). This happens when there are missing packets in a session with many blocks.
-* reorder_flush_block_expired    : next block is returned because have not received any packet for this block for at least `block_expiration_timeout` milliseconds. This happens when there are missing packets for the last blocks of a session.
-* reorder_flush_session_expired  : current active session is closed because we have not received any packet for this session for at least `session_expiration_timeout` milliseconds.
-* reorder_flush_nothing          : no block is returned : there is nothing to decode now but there are waiting packets for the current session
-* reorder_flush_nothing_inactive : no block is returned : there is nothing to decode and there is no waiting packet for the current session
+* rx_reorder_flush_block_complete   : next block is returned because we received all packets for this block
+* rx_reorder_flush_block_overflow   : next block is returned because there are too many active blocks (50). This happens when there are missing packets in a session with many blocks.
+* rx_reorder_flush_block_expired    : next block is returned because have not received any packet for this block for at least `block_expiration_timeout` milliseconds. This happens when there are missing packets for the last blocks of a session.
+* rx_reorder_flush_session_expired  : current active session is closed because we have not received any packet for this session for at least `session_expiration_timeout` milliseconds.
+* rx_reorder_flush_nothing          : no block is returned : there is nothing to decode now but there are waiting packets for the current session
+* rx_reorder_flush_nothing_inactive : no block is returned : there is nothing to decode and there is no waiting packet for the current session
 
 Decoder and send :
 
-* rx_udp_pkts_missing           : total number of missing UDP packets when trying to decode blocks (packet drops, header error or queue full...).
+* rx_decoding_pkts_missing      : total number of missing UDP packets when trying to decode blocks (packet drops, header error or queue full...).
 * rx_decoding_blocks            : total number of blocks successfully decoded
 * rx_decoding_blocks_err        : total number of blocks lost due to decoding error: too many packets missing or corrupted at the time of decoding.
-* rx_send_block_err             : total number of lost blocks because it was impossible to push it to the TCP sender queue (most probably because it is full). Try to increase "tcp_blocks_queue_size" receiver config value or adjust sender/receiver TCP throughput.
+* rx_decoding_send_block_err    : total number of lost blocks because it was impossible to push it to the TCP sender queue (most probably because it is full). Try to increase "tcp_blocks_queue_size" receiver config value or adjust sender/receiver TCP throughput.
 
 TCP sender component
 """"""""""""""""""""
 
-* rx_udp_send_queue_len         : number of blocks waiting in send_queue (between reorder/decoding thread and tcp sender thread)
-* rx_skip_block                 : number of blocks received and dropped by the TCP send component (previous decoding issue)
+* rx_tcp_send_queue_len         : number of blocks waiting in send_queue (between reorder/decoding thread and tcp sender thread)
+* rx_tcp_skip_block             : total number of blocks received and dropped by the TCP send component (previous decoding issue). Should be equal to rx_decoding_blocks_err.
 * rx_tcp_blocks                 : total number of blocks sent on TCP session
 * rx_tcp_blocks_err             : total number of lost blocks, not sent on TCP session (socket error)
 * rx_tcp_bytes                  : total number of bytes sent on TCP session
 * rx_tcp_bytes_err              : total number of lost bytes, not sent on TCP session (socket error)
-* rx_sessions                   : total number of completed TCP sessions (last block received)
+* rx_tcp_sessions               : total number of completed TCP sessions (last block received)
 
 Kernel statistics
 """""""""""""""""

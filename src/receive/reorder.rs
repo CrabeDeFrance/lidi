@@ -215,7 +215,7 @@ impl Session {
 
         if !self.active {
             trace!("condition : inactive");
-            counter!("reorder_flush_nothing_inactive").increment(1);
+            counter!("rx_reorder_flush_nothing_inactive").increment(1);
             return FlushCondition::Nothing;
         }
 
@@ -227,7 +227,7 @@ impl Session {
             // very old
             if self.elapsed() > self.session_expiration_timeout {
                 debug!("condition : session expired");
-                counter!("reorder_flush_session_expired").increment(1);
+                counter!("rx_reorder_flush_session_expired").increment(1);
                 return FlushCondition::SessionExpired;
             }
             return FlushCondition::Nothing;
@@ -235,7 +235,7 @@ impl Session {
 
         if current_block.full() {
             trace!("condition : block complete");
-            counter!("reorder_flush_block_complete").increment(1);
+            counter!("rx_reorder_flush_block_complete").increment(1);
             return FlushCondition::BlockComplete;
         }
 
@@ -247,7 +247,7 @@ impl Session {
                 self.current_block,
                 current_block.len()
             );
-            counter!("reorder_flush_block_overflow").increment(1);
+            counter!("rx_reorder_flush_block_overflow").increment(1);
             return FlushCondition::BlockOverflow;
         }
 
@@ -258,12 +258,12 @@ impl Session {
                 self.current_block,
                 current_block.len()
             );
-            counter!("reorder_flush_block_expired").increment(1);
+            counter!("rx_reorder_flush_block_expired").increment(1);
             return FlushCondition::BlockExpired;
         }
 
         trace!("condition : nothing");
-        counter!("reorder_flush_nothing").increment(1);
+        counter!("rx_reorder_flush_nothing").increment(1);
         FlushCondition::Nothing
     }
 
