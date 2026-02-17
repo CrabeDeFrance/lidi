@@ -33,11 +33,11 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let buffer = build_random_data(real_data_size);
 
     // prepare tcp socket
-    log::info!("accepting TCP clients at {}", from_tcp);
+    log::info!("accepting TCP clients at {from_tcp}");
 
     let tcp_listener = match net::TcpListener::bind(from_tcp) {
         Err(e) => {
-            log::error!("failed to bind TCP {}: {}", from_tcp, e);
+            log::error!("failed to bind TCP {from_tcp}: {e}");
             return;
         }
         Ok(listener) => listener,

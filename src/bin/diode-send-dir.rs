@@ -118,7 +118,7 @@ fn list_dir(dir: &str, ignore_file: &str) -> VecDeque<String> {
             continue;
         }
 
-        log::debug!("new file: {}", filename);
+        log::debug!("new file: {filename}");
 
         // insert files, automatically ordered by key (date)
         let modified_date = match std::fs::metadata(path.path()) {

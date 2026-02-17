@@ -39,10 +39,7 @@ impl Tcp {
         if sock_buffer_size < 2 * buffer_size {
             setsockopt(client, SndBuf, &buffer_size)?;
             let new_sock_buffer_size = getsockopt(client, SndBuf)?;
-            log::debug!(
-                "client socket send buffer size set to {}",
-                new_sock_buffer_size
-            );
+            log::debug!("client socket send buffer size set to {new_sock_buffer_size}");
             if new_sock_buffer_size < 2 * buffer_size {
                 log::warn!(
                     "client socket send buffer may be too small to achieve optimal performances"

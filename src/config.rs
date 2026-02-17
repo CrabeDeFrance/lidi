@@ -120,8 +120,7 @@ impl DiodeConfig {
                     return Err(Error::new(
                         ErrorKind::InvalidData,
                         format!(
-                            "Invalid 'receiver.core_affinity' list: there are duplicated values: {:?}",
-                            core_affinity
+                            "Invalid 'receiver.core_affinity' list: there are duplicated values: {core_affinity:?}"
                         ),
                     ));
                 }
@@ -134,8 +133,7 @@ impl DiodeConfig {
                                 return Err(Error::new(
                                     ErrorKind::InvalidData,
                                     format!(
-                                        "Invalid 'receiver.core_affinity' list: impossible to run on core {}",
-                                        core
+                                        "Invalid 'receiver.core_affinity' list: impossible to run on core {core}"
                                     ),
                                 ));
                             }

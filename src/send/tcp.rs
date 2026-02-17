@@ -53,10 +53,7 @@ impl Tcp {
             // TODO pourquoi tester contre 2 x buffersize mais configurer seulement buffersize ?
             setsockopt(&self.client, SndBuf, &buffer_size)?;
             let new_sock_buffer_size = getsockopt(&self.client, SndBuf)?;
-            log::debug!(
-                "tcp socket recv buffer size set to {}",
-                new_sock_buffer_size
-            );
+            log::debug!("tcp socket recv buffer size set to {new_sock_buffer_size}");
             if new_sock_buffer_size < 2 * buffer_size {
                 log::warn!(
                     "tcp socket recv buffer may be too small to achieve optimal performances"

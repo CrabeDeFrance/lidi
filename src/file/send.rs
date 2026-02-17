@@ -28,7 +28,7 @@ pub fn send_file(
     file_path: &str,
     stream_end: bool,
 ) -> Result<usize, file::Error> {
-    log::debug!("opening file \"{}\"", file_path);
+    log::debug!("opening file \"{file_path}\"");
 
     let file_path = path::PathBuf::from(file_path);
 
