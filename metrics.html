@@ -52,9 +52,15 @@
 <li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Metrics</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#prometheus-endpoint-configuration">Prometheus endpoint configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#relevant-metrics">Relevant metrics</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#relevant-metrics-in-diode-send">Relevant metrics in diode-send</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#diode-send">diode-send</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#diode-receive">diode-receive</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#relevant-metrics-in-diode-receive">Relevant metrics in diode-receive</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#udp-receive-component">UDP receive component</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#reorder-and-decoder-component">Reorder and decoder component</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tcp-sender-component">TCP sender component</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#kernel-statistics">Kernel statistics</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#summary-of-data-loss-metrics-diode-receive-side">Summary of data loss metrics (diode-receive side)</a><ul>
@@ -111,8 +117,8 @@ To enable this system, is it required to provide the url which will be scrapped 
 <p>When running on the same host for tests, it is necessary to put different ports or it will fail with the following error: <cite>Cannot init metrics: cannot start http listener: failed to create HTTP listener: Address already in use</cite></p>
 </div>
 </section>
-<section id="relevant-metrics">
-<h2>Relevant metrics<a class="headerlink" href="#relevant-metrics" title="Link to this heading"></a></h2>
+<section id="relevant-metrics-in-diode-send">
+<h2>Relevant metrics in diode-send<a class="headerlink" href="#relevant-metrics-in-diode-send" title="Link to this heading"></a></h2>
 <section id="diode-send">
 <h3>diode-send<a class="headerlink" href="#diode-send" title="Link to this heading"></a></h3>
 <ul class="simple">
@@ -127,32 +133,74 @@ To enable this system, is it required to provide the url which will be scrapped 
 <li><p>tx_udp_bytes_err       : total number of bytes not sent (socket error)</p></li>
 </ul>
 </section>
-<section id="diode-receive">
-<h3>diode-receive<a class="headerlink" href="#diode-receive" title="Link to this heading"></a></h3>
+</section>
+<section id="relevant-metrics-in-diode-receive">
+<h2>Relevant metrics in diode-receive<a class="headerlink" href="#relevant-metrics-in-diode-receive" title="Link to this heading"></a></h2>
 <p>All stats of diode-receive starts with <cite>rx</cite>.</p>
+<p>Processing pipeline is:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">+---------------------+</span>                 <span class="o">+---------------------------+</span>                   <span class="o">+-----------------------+</span>
+<span class="o">|</span> <span class="p">(</span><span class="n">udp</span> <span class="n">sock</span><span class="p">)</span> <span class="n">udp</span> <span class="n">recv</span> <span class="o">|</span>   <span class="n">packets</span>       <span class="o">|</span> <span class="n">reorder</span> <span class="o">+</span> <span class="n">decoder</span>         <span class="o">|</span>   <span class="n">blocks</span>          <span class="o">|</span> <span class="n">tcp</span> <span class="n">sender</span> <span class="p">(</span><span class="n">tcp</span> <span class="n">sock</span><span class="p">)</span> <span class="o">|</span>
+<span class="o">|</span>       <span class="n">rx_udp_</span><span class="o">*</span>      <span class="o">|</span> <span class="o">--------------&gt;</span> <span class="o">|</span> <span class="n">rx_pop_</span><span class="o">*</span>  <span class="o">+</span> <span class="n">rx_reorder_</span><span class="o">*</span>  <span class="o">|</span> <span class="o">----------------&gt;</span> <span class="o">|</span>        <span class="n">rx_tcp_</span><span class="o">*</span>       <span class="o">|</span>
+<span class="o">|</span>                     <span class="o">|</span>  <span class="n">reorder_queue</span>  <span class="o">|</span>   <span class="o">+</span> <span class="n">rx_decoding_</span><span class="o">*</span>         <span class="o">|</span>  <span class="n">tcp_send_queue</span>   <span class="o">|</span>                       <span class="o">|</span>
+<span class="o">+---------------------+</span>                 <span class="o">+---------------------------+</span>                   <span class="o">+-----------------------+</span>
+</pre></div>
+</div>
+<section id="udp-receive-component">
+<h3>UDP receive component<a class="headerlink" href="#udp-receive-component" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p>rx_sessions                   : total number of completed TCP sessions</p></li>
-<li><p>rx_decoding_blocks            : total number of blocks successfully decoded</p></li>
-<li><p>rx_decoding_blocks_err        : total number of blocks lost due to decoding error: too many packets missing or corrupted at the time of decoding.</p></li>
-<li><p>rx_udp_pkts                   : total number of UDP packets successfully received</p></li>
-<li><p>rx_udp_bytes                  : total number of bytes successfully received from UDP packets</p></li>
 <li><p>rx_udp_deserialize_header_err : total number of lost UDP packets due to corrupted header</p></li>
 <li><p>rx_udp_recv_pkts_err          : total number of read socket failure</p></li>
 <li><p>rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue.  Try to increase “udp_packets_queue_size” receiver config value or reduce throughput with rate limiter or try to optimize RX performance receiver <a class="reference internal" href="performance.html#multithreading"><span class="std std-ref">Multithreading</span></a>.</p></li>
-<li><p>rx_udp_pkts_missing           : total number of missing UDP packets when trying to decode blocks (packet drops, header error or queue full…).</p></li>
-<li><p>rx_tcp_blocks                 : total number of blocks sent on TCP session</p></li>
-<li><p>rx_tcp_blocks_err             : total number of lost blocks, not sent on TCP session (socket error)</p></li>
-<li><p>rx_tcp_bytes                  : total number of bytes sent on TCP session</p></li>
-<li><p>rx_tcp_bytes_err              : total number of lost bytes, not sent on TCP session (socket error)</p></li>
+</ul>
+</section>
+<section id="reorder-and-decoder-component">
+<h3>Reorder and decoder component<a class="headerlink" href="#reorder-and-decoder-component" title="Link to this heading"></a></h3>
+<p>Reorder queue :</p>
+<ul class="simple">
+<li><p>rx_pop_reorder_queue_len      : number of packets waiting in reorder queue (between udp receive thread and reorder/decoding thread)</p></li>
+<li><p>rx_pop_udp_pkts               : total number of UDP packets successfully received</p></li>
+<li><p>rx_pop_udp_bytes              : total number of bytes successfully received from UDP packets</p></li>
 <li><p>rx_pop_ok_packets             : total number of packets sent to reordering module and which completed blocks. Reordering module used this packet to complete a block and returns it. This value should be equal or inferior to rx_decoding_blocks. (Inferior because we can sometimes successfully decode a block even if we do not have all packets (see rx_pop_timeout_with_packets).</p></li>
 <li><p>rx_pop_ok_none                : total number of packets sent to reordering module, without finishing a block. Reordering module kept this packet and returned nothing, waiting for other packets to finish a block</p></li>
 <li><p>rx_pop_timeout_with_packets   : the current block did not receive the needed packets to complete it before a timeout occurs. We will try to decode the block and maybe succeed if we received enough data.</p></li>
 <li><p>rx_pop_timeout_none           : a timeout happens when there was no waiting packet for the current block.</p></li>
-<li><p>rx_send_block_err             : total number of lost blocks because it was impossible to push it to the TCP sender queue (most probably because it is full). Try to increase “tcp_blocks_queue_size” receiver config value or adjust sender/receiver TCP throughput.</p></li>
-<li><p>rx_skip_block                 : number of completed blocks dropped because the session is broken (we lost a previous block).</p></li>
-<li><p>snmp_ip_in_discards           : From kernel: the number of input IP datagrams for which no problems were encountered to prevent their continued processing, but which were discarded (e.g., for lack of buffer space). See RFC 1213.</p></li>
-<li><p>snmp_udp_in_errors            : From kernel: the number of received UDP datagrams that could not be delivered for reasons other than the lack of an application at the destination port. See RFC 1213.</p></li>
-<li><p>cpu_usage                     : Same as top. Label is thread name.</p></li>
+</ul>
+<p>Reorder component :</p>
+<ul class="simple">
+<li><p>rx_reorder_flush_block_complete   : next block is returned because we received all packets for this block</p></li>
+<li><p>rx_reorder_flush_block_overflow   : next block is returned because there are too many active blocks (50). This happens when there are missing packets in a session with many blocks.</p></li>
+<li><p>rx_reorder_flush_block_expired    : next block is returned because have not received any packet for this block for at least <cite>block_expiration_timeout</cite> milliseconds. This happens when there are missing packets for the last blocks of a session.</p></li>
+<li><p>rx_reorder_flush_session_expired  : current active session is closed because we have not received any packet for this session for at least <cite>session_expiration_timeout</cite> milliseconds.</p></li>
+<li><p>rx_reorder_flush_nothing          : no block is returned : there is nothing to decode now but there are waiting packets for the current session</p></li>
+<li><p>rx_reorder_flush_nothing_inactive : no block is returned : there is nothing to decode and there is no waiting packet for the current session</p></li>
+</ul>
+<p>Decoder and send :</p>
+<ul class="simple">
+<li><p>rx_decoding_pkts_missing      : total number of missing UDP packets when trying to decode blocks (packet drops, header error or queue full…).</p></li>
+<li><p>rx_decoding_blocks            : total number of blocks successfully decoded</p></li>
+<li><p>rx_decoding_blocks_err        : total number of blocks lost due to decoding error: too many packets missing or corrupted at the time of decoding.</p></li>
+<li><p>rx_decoding_send_block_err    : total number of lost blocks because it was impossible to push it to the TCP sender queue (most probably because it is full). Try to increase “tcp_blocks_queue_size” receiver config value or adjust sender/receiver TCP throughput.</p></li>
+</ul>
+</section>
+<section id="tcp-sender-component">
+<h3>TCP sender component<a class="headerlink" href="#tcp-sender-component" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>rx_tcp_send_queue_len         : number of blocks waiting in send_queue (between reorder/decoding thread and tcp sender thread)</p></li>
+<li><p>rx_tcp_drop_block             : total number of blocks received and dropped by the TCP send component because TCP session is not established (init block for this session was missing).</p></li>
+<li><p>rx_tcp_no_block               : total number of messages received and dropped by the TCP send component due to decoding issue. Should be close to rx_decoding_blocks_err.</p></li>
+<li><p>rx_tcp_blocks                 : total number of blocks sent on TCP session</p></li>
+<li><p>rx_tcp_blocks_err             : total number of lost blocks, not sent on TCP session (socket error)</p></li>
+<li><p>rx_tcp_bytes                  : total number of bytes sent on TCP session</p></li>
+<li><p>rx_tcp_bytes_err              : total number of lost bytes, not sent on TCP session (socket error)</p></li>
+<li><p>rx_tcp_sessions               : total number of completed TCP sessions (last block received)</p></li>
+</ul>
+</section>
+<section id="kernel-statistics">
+<h3>Kernel statistics<a class="headerlink" href="#kernel-statistics" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>snmp_ip_in_discards : From kernel: the number of input IP datagrams for which no problems were encountered to prevent their continued processing, but which were discarded (e.g., for lack of buffer space). See RFC 1213.</p></li>
+<li><p>snmp_udp_in_errors  : From kernel: the number of received UDP datagrams that could not be delivered for reasons other than the lack of an application at the destination port. See RFC 1213.</p></li>
+<li><p>cpu_usage           : Same as top. Label is thread name.</p></li>
 </ul>
 </section>
 </section>
