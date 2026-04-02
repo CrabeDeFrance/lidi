@@ -61,7 +61,7 @@ UDP receive component
 
 * rx_udp_deserialize_header_err : total number of lost UDP packets due to corrupted header
 * rx_udp_recv_pkts_err          : total number of read socket failure
-* rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue.  Try to increase "udp_packets_queue_size" receiver config value or reduce throughput with rate limiter or try to optimize RX performance receiver :ref:`multithreading`.
+* rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue.  Try to increase "udp_packets_queue_size" receiver config value, adjust tc rate limiting, or try to optimize RX performance receiver :ref:`multithreading`.
 
 Reorder and decoder component
 """""""""""""""""""""""""""""

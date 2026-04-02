@@ -14,7 +14,7 @@ This version is a fork of the original `lidi project <https://github.com/ANSSI-F
 It aims to fix several issues and improve the following topics:
 
 * Support network interrupt and being able to recover from packet loss, introducting a brand new reordering component. This fixes issues `#3 <https://github.com/ANSSI-FR/lidi/issues/3>`_ and `#4 <https://github.com/ANSSI-FR/lidi/issues/4>`_).
-* Add bandwidth limiter at sender side
+* Use external rate limiting with `tc` (traffic control) for precise bandwidth management
 * Use a highly configurable `logging <https://docs.rs/log4rs/latest/log4rs/>`_ framework and `metrics <https://docs.rs/metrics/latest/metrics/>`_ compatible with `Prometheus <https://prometheus.io/>`_
 * Validation of the project by adding functional tests using `behave <https://behave.readthedocs.io/en/latest/>`_
 * Simplify the global architecture to ease maintenance and improve performance
@@ -34,19 +34,20 @@ Caveat
 If you want to run lidi close to its intended speed, tuning :ref:`configuration_file` according to your network configuration is certainly required to add :ref:`multithreading`.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+    :maxdepth: 2
+    :caption: Contents:
 
-   gstarted
-   session
-   parameters
-   configuration_file
-   network
-   performance
-   logging
-   metrics
-   timers
-   files 
+    gstarted
+    session
+    parameters
+    configuration_file
+    network
+    tc_ratelimiter
+    performance
+    logging
+    metrics
+    timers
+    files 
 
 
 Indices and tables

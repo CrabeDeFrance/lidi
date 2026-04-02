@@ -19,7 +19,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Logging" href="logging.html" />
-    <link rel="prev" title="Network configuration" href="network.html" /> 
+    <link rel="prev" title="Rate limiting with tc" href="tc_ratelimiter.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -48,6 +48,7 @@
 <li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_file.html">Configuration file</a></li>
 <li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tc_ratelimiter.html">Rate limiting with tc</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Performance and fiability parameters</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#throughput-management">Throughput management</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#rate-limiting">Rate limiting</a></li>
@@ -98,17 +99,10 @@
 <section id="throughput-management">
 <h2>Throughput management<a class="headerlink" href="#throughput-management" title="Link to this heading"></a></h2>
 <section id="rate-limiting">
-<span id="ratelimit"></span><h3>Rate limiting<a class="headerlink" href="#rate-limiting" title="Link to this heading"></a></h3>
-<p>Basically, since Lidi diode-send scales pretty well and can reach very high throughput, it is often necessary to ratelimit the speed of diode-send to prevent packet drop in network.
-A single thread can send multiple gigabits per second so continuous packet drops can occur very quickly on networks. Once the maximum available bandwidth has be measured, it is important to set this limit in the configuration file :</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">sender</span><span class="p">]</span>
-<span class="n">max_bandwidth</span> <span class="o">=</span> <span class="o">&lt;</span><span class="n">Mbit</span><span class="o">/</span><span class="n">s</span><span class="o">&gt;</span>
-</pre></div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>This rate limiter tries to match the real bandwith consumption on the network. It includes all overheads due to repair packets and headers. For headers, an assumption is done about the transport layer, which is independant of lidi: the computation is done for packets having Ethernet + IP + UDP headers for a sum of 42 bytes. That means if there are more headers, the real throughput will be higher than what is set in the configuration.</p>
-</div>
+<h3>Rate limiting<a class="headerlink" href="#rate-limiting" title="Link to this heading"></a></h3>
+<p>Basically, since Lidi diode-send scales pretty well and can reach very high throughput, it is often necessary to limit the speed of diode-send to prevent packet drop in network.
+A single thread can send multiple gigabits per second so continuous packet drops can occur very quickly on networks. Once the maximum available bandwidth has be measured, it is important to set a rate limit.</p>
+<p>Rate limiting is handled externally using the Linux <cite>tc</cite> (traffic control) utility. See <span class="xref std std-ref">tc_ratelimiter</span> for detailed configuration.</p>
 </section>
 <section id="multithreading">
 <span id="id1"></span><h3>Multithreading<a class="headerlink" href="#multithreading" title="Link to this heading"></a></h3>
@@ -210,7 +204,7 @@ Blocks are made of two parts : encoding block and repair block. Encoding block c
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="network.html" class="btn btn-neutral float-left" title="Network configuration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="tc_ratelimiter.html" class="btn btn-neutral float-left" title="Rate limiting with tc" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="logging.html" class="btn btn-neutral float-right" title="Logging" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

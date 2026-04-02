@@ -47,6 +47,7 @@
 <li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_file.html">Configuration file</a></li>
 <li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tc_ratelimiter.html">Rate limiting with tc</a></li>
 <li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics</a></li>
@@ -89,7 +90,7 @@
 It aims to fix several issues and improve the following topics:</p>
 <ul class="simple">
 <li><p>Support network interrupt and being able to recover from packet loss, introducting a brand new reordering component. This fixes issues <a class="reference external" href="https://github.com/ANSSI-FR/lidi/issues/3">#3</a> and <a class="reference external" href="https://github.com/ANSSI-FR/lidi/issues/4">#4</a>).</p></li>
-<li><p>Add bandwidth limiter at sender side</p></li>
+<li><p>Use external rate limiting with <cite>tc</cite> (traffic control) for precise bandwidth management</p></li>
 <li><p>Use a highly configurable <a class="reference external" href="https://docs.rs/log4rs/latest/log4rs/">logging</a> framework and <a class="reference external" href="https://docs.rs/metrics/latest/metrics/">metrics</a> compatible with <a class="reference external" href="https://prometheus.io/">Prometheus</a></p></li>
 <li><p>Validation of the project by adding functional tests using <a class="reference external" href="https://behave.readthedocs.io/en/latest/">behave</a></p></li>
 <li><p>Simplify the global architecture to ease maintenance and improve performance</p></li>
@@ -126,6 +127,16 @@ It aims to fix several issues and improve the following topics:</p>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="network.html#adresses-and-ports">Adresses and ports</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="tc_ratelimiter.html">Rate limiting with tc</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tc_ratelimiter.html#why-use-tc-for-rate-limiting">Why use tc for rate limiting?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tc_ratelimiter.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tc_ratelimiter.html#basic-tc-configuration-for-lidi">Basic tc configuration for Lidi</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tc_ratelimiter.html#advanced-configuration">Advanced configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tc_ratelimiter.html#monitoring-tc-rules">Monitoring tc rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tc_ratelimiter.html#integration-with-lidi-tests">Integration with Lidi tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tc_ratelimiter.html#troubleshooting">Troubleshooting</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a><ul>

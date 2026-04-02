@@ -51,6 +51,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tc_ratelimiter.html">Rate limiting with tc</a></li>
 <li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics</a></li>
@@ -124,9 +125,6 @@
 <span class="c1"># UDP source address to use for client socket in format A.B.C.D:port. It is possible to use port 0 for automatic assignement.</span>
 <span class="n">bind_udp</span> <span class="o">=</span> <span class="s2">&quot;127.0.0.1:0&quot;</span>
 
-<span class="c1"># ratelimit Lidi output (UDP packets throughput). In Mbit/s.</span>
-<span class="n">max_bandwidth</span> <span class="o">=</span> <span class="mi">100</span>
-
 <span class="c1"># prometheus port</span>
 <span class="c1"># metrics = &quot;0.0.0.0:9001&quot;</span>
 
@@ -159,7 +157,6 @@
 <li><dl class="simple">
 <dt>Mandatory network options</dt><dd><ul>
 <li><p><cite>udp_addr</cite>, <cite>udp_port</cite>, <cite>bind_tcp</cite> and <cite>to_tcp</cite> are explained in <a class="reference internal" href="network.html#network"><span class="std std-ref">Network configuration</span></a></p></li>
-<li><p><cite>max_bandwidth</cite> is described in <a class="reference internal" href="performance.html#ratelimit"><span class="std std-ref">Rate limiting</span></a></p></li>
 </ul>
 </dd>
 </dl>

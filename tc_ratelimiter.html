@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rate limiting with tc &mdash; Lidi 0.8.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=86f27845" />
+
+  
+  
+        <script src="_static/jquery.js?v=8dae8fb0"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=486e5634"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Performance and fiability parameters" href="performance.html" />
+    <link rel="prev" title="Network configuration" href="network.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Lidi
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="gstarted.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="session.html">Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_file.html">Configuration file</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Rate limiting with tc</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#why-use-tc-for-rate-limiting">Why use tc for rate limiting?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#basic-tc-configuration-for-lidi">Basic tc configuration for Lidi</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#setup-rate-limiting">Setup rate limiting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#teardown">Teardown</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#advanced-configuration">Advanced configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#multiple-ports">Multiple ports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#different-rates-per-port">Different rates per port</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#monitoring-tc-rules">Monitoring tc rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#integration-with-lidi-tests">Integration with Lidi tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timers.html">Timers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Sample applications to exchanging files</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Lidi</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Rate limiting with tc</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/tc_ratelimiter.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="rate-limiting-with-tc">
+<h1>Rate limiting with tc<a class="headerlink" href="#rate-limiting-with-tc" title="Link to this heading"></a></h1>
+<p>Lidi no longer includes an internal bandwidth limiter. Instead, network traffic shaping is handled by the Linux <cite>tc</cite> (traffic control) utility, which provides more precise and flexible control over network throughput.</p>
+<section id="why-use-tc-for-rate-limiting">
+<h2>Why use tc for rate limiting?<a class="headerlink" href="#why-use-tc-for-rate-limiting" title="Link to this heading"></a></h2>
+<p>Using <cite>tc</cite> provides:</p>
+<ul class="simple">
+<li><p>Accurate control of actual network throughput</p></li>
+<li><p>Support for complex network topologies</p></li>
+<li><p>Better handling of packet overheads</p></li>
+<li><p>Integration with kernel networking stack</p></li>
+<li><p>More granular control per interface and protocol</p></li>
+</ul>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h2>
+<p>To use <cite>tc</cite>, your user needs the <cite>CAP_NET_ADMIN</cite> capability. There are several ways to configure this:</p>
+<p><strong>Option 1: Add to netdev group</strong> (recommended)</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>usermod<span class="w"> </span>-aG<span class="w"> </span>netdev<span class="w"> </span><span class="nv">$USER</span>
+</pre></div>
+</div>
+<p>Log out and log back in for changes to take effect.</p>
+<p><strong>Option 2: Add capabilities to tc binary</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>setcap<span class="w"> </span>cap_net_admin+ep<span class="w"> </span>/sbin/tc
+</pre></div>
+</div>
+<p><strong>Option 3: Use sudo</strong></p>
+<p>Run tc commands with sudo or configure sudoers to allow tc without password.</p>
+</section>
+<section id="basic-tc-configuration-for-lidi">
+<h2>Basic tc configuration for Lidi<a class="headerlink" href="#basic-tc-configuration-for-lidi" title="Link to this heading"></a></h2>
+<p>Lidi typically sends UDP traffic on a specific port (default: 5000) to a specific destination IP. Here is a basic tc configuration:</p>
+<section id="setup-rate-limiting">
+<h3>Setup rate limiting<a class="headerlink" href="#setup-rate-limiting" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create HTB qdisc on loopback interface</span>
+sudo<span class="w"> </span>tc<span class="w"> </span>qdisc<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>root<span class="w"> </span>handle<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>htb<span class="w"> </span>default<span class="w"> </span><span class="m">99</span>
+
+<span class="c1"># Create default class (unlimited traffic)</span>
+sudo<span class="w"> </span>tc<span class="w"> </span>class<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>parent<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>classid<span class="w"> </span><span class="m">1</span>:99<span class="w"> </span>htb<span class="w"> </span>rate<span class="w"> </span>1gbit
+
+<span class="c1"># Create limited class for Lidi UDP traffic</span>
+sudo<span class="w"> </span>tc<span class="w"> </span>class<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>parent<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>classid<span class="w"> </span><span class="m">1</span>:10<span class="w"> </span>htb<span class="w"> </span>rate<span class="w"> </span>100mbit<span class="w"> </span>burst<span class="w"> </span>32kbit
+
+<span class="c1"># Filter UDP traffic to Lidi port</span>
+sudo<span class="w"> </span>tc<span class="w"> </span>filter<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>parent<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>protocol<span class="w"> </span>ip<span class="w"> </span>prio<span class="w"> </span><span class="m">1</span><span class="w"> </span>u32<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>protocol<span class="w"> </span><span class="m">17</span><span class="w"> </span>0xff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>dport<span class="w"> </span><span class="m">5000</span><span class="w"> </span>0xffff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>flowid<span class="w"> </span><span class="m">1</span>:10
+</pre></div>
+</div>
+<p>Replace <code class="docutils literal notranslate"><span class="pre">100mbit</span></code> with your desired bandwidth limit and <code class="docutils literal notranslate"><span class="pre">5000</span></code> with your Lidi UDP port.</p>
+</section>
+<section id="teardown">
+<h3>Teardown<a class="headerlink" href="#teardown" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>tc<span class="w"> </span>qdisc<span class="w"> </span>del<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>root
+</pre></div>
+</div>
+</section>
+</section>
+<section id="advanced-configuration">
+<h2>Advanced configuration<a class="headerlink" href="#advanced-configuration" title="Link to this heading"></a></h2>
+<section id="multiple-ports">
+<h3>Multiple ports<a class="headerlink" href="#multiple-ports" title="Link to this heading"></a></h3>
+<p>If you use multiple UDP ports (for multithreading), add multiple filters:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>tc<span class="w"> </span>filter<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>parent<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>protocol<span class="w"> </span>ip<span class="w"> </span>prio<span class="w"> </span><span class="m">1</span><span class="w"> </span>u32<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>protocol<span class="w"> </span><span class="m">17</span><span class="w"> </span>0xff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>dport<span class="w"> </span><span class="m">5000</span><span class="w"> </span>0xffff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>flowid<span class="w"> </span><span class="m">1</span>:10
+
+sudo<span class="w"> </span>tc<span class="w"> </span>filter<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>parent<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>protocol<span class="w"> </span>ip<span class="w"> </span>prio<span class="w"> </span><span class="m">1</span><span class="w"> </span>u32<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>protocol<span class="w"> </span><span class="m">17</span><span class="w"> </span>0xff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>dport<span class="w"> </span><span class="m">5001</span><span class="w"> </span>0xffff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>flowid<span class="w"> </span><span class="m">1</span>:10
+</pre></div>
+</div>
+</section>
+<section id="different-rates-per-port">
+<h3>Different rates per port<a class="headerlink" href="#different-rates-per-port" title="Link to this heading"></a></h3>
+<p>You can create separate classes for different ports with different rates:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Class for port 5000 at 100mbit</span>
+sudo<span class="w"> </span>tc<span class="w"> </span>class<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>parent<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>classid<span class="w"> </span><span class="m">1</span>:10<span class="w"> </span>htb<span class="w"> </span>rate<span class="w"> </span>100mbit
+
+<span class="c1"># Class for port 5001 at 50mbit</span>
+sudo<span class="w"> </span>tc<span class="w"> </span>class<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>parent<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>classid<span class="w"> </span><span class="m">1</span>:20<span class="w"> </span>htb<span class="w"> </span>rate<span class="w"> </span>50mbit
+
+<span class="c1"># Filters</span>
+sudo<span class="w"> </span>tc<span class="w"> </span>filter<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>parent<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>protocol<span class="w"> </span>ip<span class="w"> </span>prio<span class="w"> </span><span class="m">1</span><span class="w"> </span>u32<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>protocol<span class="w"> </span><span class="m">17</span><span class="w"> </span>0xff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>dport<span class="w"> </span><span class="m">5000</span><span class="w"> </span>0xffff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>flowid<span class="w"> </span><span class="m">1</span>:10
+
+sudo<span class="w"> </span>tc<span class="w"> </span>filter<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>lo<span class="w"> </span>parent<span class="w"> </span><span class="m">1</span>:<span class="w"> </span>protocol<span class="w"> </span>ip<span class="w"> </span>prio<span class="w"> </span><span class="m">1</span><span class="w"> </span>u32<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>protocol<span class="w"> </span><span class="m">17</span><span class="w"> </span>0xff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>dport<span class="w"> </span><span class="m">5001</span><span class="w"> </span>0xffff<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>flowid<span class="w"> </span><span class="m">1</span>:20
+</pre></div>
+</div>
+</section>
+</section>
+<section id="monitoring-tc-rules">
+<h2>Monitoring tc rules<a class="headerlink" href="#monitoring-tc-rules" title="Link to this heading"></a></h2>
+<p>View current tc configuration:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>tc<span class="w"> </span>qdisc<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>lo
+sudo<span class="w"> </span>tc<span class="w"> </span>class<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>lo
+sudo<span class="w"> </span>tc<span class="w"> </span>filter<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>lo
+</pre></div>
+</div>
+<p>View statistics:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>tc<span class="w"> </span>-s<span class="w"> </span>qdisc<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>lo
+</pre></div>
+</div>
+</section>
+<section id="integration-with-lidi-tests">
+<h2>Integration with Lidi tests<a class="headerlink" href="#integration-with-lidi-tests" title="Link to this heading"></a></h2>
+<p>The test suite includes a <code class="docutils literal notranslate"><span class="pre">TcUdpShaper</span></code> class in <code class="docutils literal notranslate"><span class="pre">features/steps/tc_shaper.py</span></code> that automates tc configuration for testing. This class:</p>
+<ul class="simple">
+<li><p>Sets up HTB qdisc with filtered UDP rate limiting</p></li>
+<li><p>Targets specific UDP destination ports</p></li>
+<li><p>Provides setup() and teardown() methods for test fixtures</p></li>
+<li><p>Requires CAP_NET_ADMIN capability</p></li>
+</ul>
+<p>Example usage in tests:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">features.steps.tc_shaper</span> <span class="kn">import</span> <span class="n">TcUdpShaper</span>
+
+<span class="n">shaper</span> <span class="o">=</span> <span class="n">TcUdpShaper</span><span class="p">(</span><span class="n">rate</span><span class="o">=</span><span class="s2">&quot;100mbit&quot;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+<span class="n">shaper</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
+<span class="c1"># Run tests...</span>
+<span class="n">shaper</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<p>Check if tc is available:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>which<span class="w"> </span>tc
+</pre></div>
+</div>
+<p>Check if you have CAP_NET_ADMIN:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>capsh<span class="w"> </span>--print
+</pre></div>
+</div>
+<p>Common issues:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Operation</span> <span class="pre">not</span> <span class="pre">permitted</span></code>: User lacks CAP_NET_ADMIN capability</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">File</span> <span class="pre">exists</span></code>: qdisc already exists, remove it first with <code class="docutils literal notranslate"><span class="pre">tc</span> <span class="pre">qdisc</span> <span class="pre">del</span></code></p></li>
+<li><p>No effect: Verify you are shaping the correct interface (lo for local, eth0 for network)</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="network.html" class="btn btn-neutral float-left" title="Network configuration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="performance.html" class="btn btn-neutral float-right" title="Performance and fiability parameters" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, ANSSI-FR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

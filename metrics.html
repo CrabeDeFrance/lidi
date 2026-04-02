@@ -48,6 +48,7 @@
 <li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_file.html">Configuration file</a></li>
 <li class="toctree-l1"><a class="reference internal" href="network.html">Network configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tc_ratelimiter.html">Rate limiting with tc</a></li>
 <li class="toctree-l1"><a class="reference internal" href="performance.html">Performance and fiability parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="logging.html">Logging</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Metrics</a><ul>
@@ -150,7 +151,7 @@ To enable this system, is it required to provide the url which will be scrapped 
 <ul class="simple">
 <li><p>rx_udp_deserialize_header_err : total number of lost UDP packets due to corrupted header</p></li>
 <li><p>rx_udp_recv_pkts_err          : total number of read socket failure</p></li>
-<li><p>rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue.  Try to increase “udp_packets_queue_size” receiver config value or reduce throughput with rate limiter or try to optimize RX performance receiver <a class="reference internal" href="performance.html#multithreading"><span class="std std-ref">Multithreading</span></a>.</p></li>
+<li><p>rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue.  Try to increase “udp_packets_queue_size” receiver config value, adjust tc rate limiting, or try to optimize RX performance receiver <a class="reference internal" href="performance.html#multithreading"><span class="std std-ref">Multithreading</span></a>.</p></li>
 </ul>
 </section>
 <section id="reorder-and-decoder-component">
