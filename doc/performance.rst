@@ -4,22 +4,13 @@ Performance and fiability parameters
 Throughput management
 ---------------------
 
-.. _ratelimit:
-
 Rate limiting
 ^^^^^^^^^^^^^
 
-Basically, since Lidi diode-send scales pretty well and can reach very high throughput, it is often necessary to ratelimit the speed of diode-send to prevent packet drop in network.
-A single thread can send multiple gigabits per second so continuous packet drops can occur very quickly on networks. Once the maximum available bandwidth has be measured, it is important to set this limit in the configuration file :
+Basically, since Lidi diode-send scales pretty well and can reach very high throughput, it is often necessary to limit the speed of diode-send to prevent packet drop in network.
+A single thread can send multiple gigabits per second so continuous packet drops can occur very quickly on networks. Once the maximum available bandwidth has be measured, it is important to set a rate limit.
 
-.. code-block::
-
-   [sender]
-   max_bandwidth = <Mbit/s>
-
-.. note::
-
-   This rate limiter tries to match the real bandwith consumption on the network. It includes all overheads due to repair packets and headers. For headers, an assumption is done about the transport layer, which is independant of lidi: the computation is done for packets having Ethernet + IP + UDP headers for a sum of 42 bytes. That means if there are more headers, the real throughput will be higher than what is set in the configuration. 
+Rate limiting is handled externally using the Linux `tc` (traffic control) utility. See :ref:`tc_ratelimiter` for detailed configuration.
 
 .. _multithreading:
 

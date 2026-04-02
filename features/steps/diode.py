@@ -1,286 +1,203 @@
 # implementation of steps for "diode start"
+#
+# This code start the following applications on the following ports :
+#
+#  [lidi-send-file]   -->   [lidi-send]   -->   [lidi-receive]   <--   [lidi-receive-file]
+#             TCP tcp_send_port         UDP 6000            TCP tcp_receive_port
+#
+# Or, when using lidi-network-simulator :
+#
+#  [lidi-send-file]   -->   [lidi-send]   -->   [lidi-network-simulator]   -->   [lidi-receive]   <--   [lidi-receive-file]
+#             TCP tcp_send_port         UDP 5000                         UDP 6000           TCP tcp_receive_port
+# 
+#  IP/PORT Configuration:
+#  - lidi-send-dir: TCP server on 127.0.0.1:tcp_send_port
+#  - lidi-send: UDP client on 127.0.0.1:5000 (or 6000 if network behavior), TCP server on 127.0.0.1:tcp_send_port
+#  - lidi-receive: UDP server on 127.0.0.1:5000 (or 6000 if network behavior), TCP server on 127.0.0.1:tcp_receive_port
+#  - lidi-receive-file: TCP client on 127.0.0.1:tcp_receive_port
+#  - lidi-network-simulator (if used):
+#      - UDP bind on 0.0.0.0:5000
+#      - UDP to 127.0.0.1:6000
+#
+#  Network Behavior (when enabled):
+#  - lidi-network-simulator handles simulated network behavior
+#  - UDP traffic flows from lidi-send (5000) to lidi-network-simulator (5000)
+#  - lidi-network-simulator forwards to lidi-receive (6000)
+#  - This enables testing of network conditions like bandwidth limitations, packet loss, etc.
 
-from behave import given, when, then, use_step_matcher
+import os
+import psutil
 import subprocess
 import time
-import psutil
-import os
-from tempfile import TemporaryDirectory
+from contextlib import contextmanager
 
-from throttle_fs import ThrottledFSProcess
-
-use_step_matcher("cfparse")
-
-def build_lidi_config(context, udp_port, log_config):
-    mtu = 1500
-    if not context.repair_block:
-        if context.mtu:
-            mtu = context.mtu
-            repair_block = 2 * context.mtu
-        else:
-            repair_block = 3000
-    else:
-        repair_block = context.repair_block
-
-    if context.block_size:
-        block_size = context.block_size
-    else:
-        block_size = 30000
-
-    if context.read_rate:
-        max_bandwidth = "max_bandwidth = {}".format(context.read_rate)
-    else:
-        max_bandwidth = ""
-  
-    return f"""
-encoding_block_size = {block_size}
-repair_block_size = {repair_block}
-
-# IP address and port used to send UDP packets between diode-send and diode-receive
-udp_addr = "127.0.0.1"
-
-udp_port = [ {udp_port} ]
-
-# MTU of the to use one the UDP link
-udp_mtu = {mtu}
-
-# heartbeat period in ms
-heartbeat = 500
-
-# Path to log configuration file
-{log_config}
-
-# specific options for diode-send
-[sender]
-# TCP server socket to accept data
-bind_tcp = "127.0.0.1:5000"
-
-# UDP source address to use
-bind_udp = "127.0.0.1:0"
-
-# ratelimit TCP session speed (in Mbit/s)
-{max_bandwidth}
-
-# specific options for diode-receive
-[receiver]
-to_tcp = "127.0.0.1:7000"
-# block_expiration_timeout = 500
-session_expiration_timeout = 1000
-"""
-
-def write_lidi_config(context, filename, udp_port, log_config):
-    filename = os.path.join(context.base_dir, filename)
-    log_config_str = f"log_config = \"{log_config}\""
-    with open(filename, "w") as f:
-        f.write(build_lidi_config(context, udp_port, log_config_str))
-        f.close()
-    return filename
-
-
-def nice(process_name):
-    for proc in psutil.process_iter():
-        if process_name in proc.name():
-            ps = psutil.Process(proc.pid)
-            # must be root
-            if os.getuid() == 0:
-                ps.nice(-20)
-            return 
-
+from features.steps.config import build_diode_send_dir_command, build_diode_send_file_command, build_lidi_receive_command, build_lidi_receive_file_command, build_lidi_send_command, build_network_simulator_command, log_files, write_lidi_config
+from features.steps.file import create_file
+from features.steps.tc_shaper import TcUdpShaper
+from features.steps.utils import stop_process, nice, PROCESS_READY_DELAY, PROCESS_READY_DELAY_EXTENDED
+        
 def start_diode_receive(context):
-    if context.quiet:
-        stdout = subprocess.DEVNULL
-        stderr = subprocess.DEVNULL
-    else:
-        stdout = subprocess.PIPE
-        stderr = subprocess.STDOUT
+    """Start the diode receive process."""
+    diode_receive_command = build_lidi_receive_command(context)
 
-    if context.network_down_after or context.network_up_after or context.network_drop or context.network_max_bandwidth or context.bandwidth_must_not_exceed:
-        receiver_bind_udp_port = "6000"
-    else:
-        receiver_bind_udp_port = "5000"
+    context.proc_diode_receive = subprocess.Popen(
+        diode_receive_command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    
+    # Wait enough time for diode-receive to be ready
+    time.sleep(PROCESS_READY_DELAY_EXTENDED)
 
-    lidi_config = write_lidi_config(context, "lidi_receive.toml", receiver_bind_udp_port, context.log_config_diode_receive)
-
-    diode_receive_command = [f'{context.bin_dir}/diode-receive', '-c', lidi_config]
-
-    context.proc_diode_receive = subprocess.Popen(diode_receive_command, stdout=stdout, stderr=stderr)
-    # here we need to wait enough time for diode-receive to be ready
-    time.sleep(2)
+    # Check it is running
     poll = context.proc_diode_receive.poll()
-    if poll:
-        print(context.proc_diode_receive.communicate())
+    if poll is not None:
+        stdout, stderr = context.proc_diode_receive.communicate()
+        print(f"diode-receive failed with return code {poll}")
+        print(f"Stdout: {stdout}")
+        print(f"Stderr: {stderr}")
         raise Exception("Can't start diode receive")
 
     nice('diode-receive')
 
 def stop_diode_receive(context):
-    if context.proc_diode_receive:
-        context.proc_diode_receive.kill()
+    """Stop the diode receive process."""
+    stop_process(context, 'proc_diode_receive')
 
 def start_diode_file_receive(context):
-    if context.quiet:
-        stdout = subprocess.DEVNULL
-        stderr = subprocess.DEVNULL
-    else:
-        stdout = subprocess.PIPE
-        stderr = subprocess.STDOUT
+    """Start the diode receive file process."""
+    diode_receive_file_command = build_lidi_receive_file_command(context)
 
-    # start diode-receive-file (tcp server)
-    diode_receive_file_command = [f'{context.bin_dir}/diode-receive-file', '--bind-tcp', '127.0.0.1:7000', context.receive_dir.name]
-    if context.log_config_diode_receive_file:
-        diode_receive_file_command.append('--log-config')
-        diode_receive_file_command.append(context.log_config_diode_receive_file)
-
-    context.proc_diode_receive_file = subprocess.Popen(
-        diode_receive_file_command,
-        stdout=stdout, stderr=stderr)
+    with log_files(context.receive_dir, 'receive-file') as (stdout, stderr):
+        # Start diode-receive-file
+        context.proc_diode_receive_file = subprocess.Popen(
+            diode_receive_file_command,
+            stdout=stdout,
+            stderr=stderr
+        )
 
 def stop_diode_file_receive(context):
-    if context.proc_diode_receive_file:
-        context.proc_diode_receive_file.kill()
+    """Stop the diode file receive process."""
+    stop_process(context, 'proc_diode_receive_file')
 
 def start_diode_send(context):
-    if context.quiet:
-        stdout = subprocess.DEVNULL
-        stderr = subprocess.DEVNULL
-    else:
-        stdout = subprocess.PIPE
-        stderr = subprocess.STDOUT
+    """Start the diode send process."""
+    diode_send_command = build_lidi_send_command(context)
 
-    lidi_config = write_lidi_config(context, "lidi_send.toml", "5000", context.log_config_diode_send)
+    # Start diode-send
+    context.proc_diode_send = subprocess.Popen(
+        diode_send_command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
 
-    diode_send_command = [f'{context.bin_dir}/diode-send', '-c', lidi_config]
+    # Wait enough time for diode-send to be ready
+    time.sleep(PROCESS_READY_DELAY)
 
-    context.proc_diode_send = subprocess.Popen(diode_send_command, stdout=stdout, stderr=stderr)
-    time.sleep(0.5)
+    # Check it is running
     poll = context.proc_diode_send.poll()
-    if poll:
-        print(context.proc_diode_send.communicate())
+    if poll is not None:
+        stdout, stderr = context.proc_diode_send.communicate()
+        print(f"diode-send failed with return code {poll}")
+        print(f"Stdout: {stdout}")
+        print(f"Stderr: {stderr}")
         raise Exception("Can't start diode send")
     nice('diode-send')
 
 def stop_diode_send(context):
+    """Stop the diode send process."""
     if context.proc_diode_send:
         context.proc_diode_send.kill()
 
 def start_diode(context):
-    if context.quiet:
-        stdout = subprocess.DEVNULL
-        stderr = subprocess.DEVNULL
-    else:
-        stdout = subprocess.PIPE
-        stderr = subprocess.STDOUT
+    """Start the complete diode system with network simulation if needed."""
+    network_simulator_command = build_network_simulator_command(context)
 
-    network_behavior = False
-    network_command = [f'{context.bin_dir}/network-behavior', '--bind-udp', '0.0.0.0:5000', '--to-udp', '127.0.0.1:6000',
-                       '--log-config', context.log_config_network_behavior]
-    if context.network_down_after:
-        network_command.append('--network-down-after')
-        network_command.append(str(context.network_down_after))
-        network_behavior = True
+    # Start network simulator if behavior is configured
+    if network_simulator_command:
+        context.proc_network = subprocess.Popen(network_simulator_command)
+        time.sleep(PROCESS_READY_DELAY)
 
-    if context.network_up_after:
-        network_command.append('--network-up-after')
-        network_command.append(str(context.network_up_after))
-        network_behavior = True
-
-    if context.network_drop:
-        network_command.append('--loss-rate')
-        network_command.append(context.network_drop)
-        network_behavior = True
-
-    if context.network_max_bandwidth:
-        network_command.append('--max-bandwidth')
-        network_command.append(context.network_max_bandwidth)
-        network_behavior = True
-
-    if context.bandwidth_must_not_exceed:
-        network_command.append('--abort-on-max-bandwidth')
-        network_command.append(context.bandwidth_must_not_exceed)
-        network_behavior = True
-
-    if network_behavior:
-        context.proc_network = subprocess.Popen(network_command)
-        time.sleep(1)
-
+    # Start diode receive file process
     start_diode_file_receive(context)
+    time.sleep(PROCESS_READY_DELAY)
 
-    time.sleep(1)
-
-    # start diode-receive (connects to diode-receive-file)
+    # Start diode receive (connects to diode-receive-file)
     start_diode_receive(context)
 
-    # finally start diode-send (send init packet to diode-receive, acts as a server for diode-send-file)
+    # Finally start diode send (send init packet to diode-receive, acts as a server for diode-send-file)
     start_diode_send(context)
 
 
-def start_throttled_diode(context, read_rate):
-    context.send_ratelimit_dir = TemporaryDirectory()
-
-    context.proc_throttled_fs = ThrottledFSProcess(context.send_ratelimit_dir.name, context.send_dir.name, read_rate)
-    context.proc_throttled_fs.start()
-
-    time.sleep(1)
+def start_throttled_diode(context, read_rate: str, mtu: int | None = None):
+    """Start diode with tc-based UDP bandwidth shaping on loopback."""
+    # read_rate : notation tc, ex. "10mbit", "500kbit"
+    # mtu : maximum transmission unit in bytes (optional)
+    if mtu:
+        context.mtu = mtu
+    context.tc_shaper = TcUdpShaper(rate=read_rate, port=5000)
+    context.tc_shaper.setup()
 
     start_diode(context)
+
+def stop_throttled_diode(context):
+    """Teardown tc shaping if active."""
+    if hasattr(context, 'tc_shaper') and context.tc_shaper:
+        context.tc_shaper.teardown()
+        context.tc_shaper = None
 
 def start_diode_send_dir(context):
-    if context.quiet:
-        stdout = subprocess.DEVNULL
-        stderr = subprocess.DEVNULL
+    """Start the diode send directory process."""
+    diode_send_dir_command = build_diode_send_dir_command(context)
+
+    with log_files(context.send_dir, 'send-dir') as (stdout, stderr):
+        # Start diode-send-dir
+        context.proc_diode_send_dir = subprocess.Popen(
+            diode_send_dir_command,
+            stdout=stdout,
+            stderr=stderr
+        )
+
+    time.sleep(PROCESS_READY_DELAY)
+
+def send_file_command(context, filename, background=False):
+    """Execute send file command with specified parameters."""    
+    diode_send_file_command = build_diode_send_file_command(context, filename)
+
+    if not background:
+        # Execute the command
+        with log_files(context.base_dir, 'send-file') as (stdout, stderr):
+            result = subprocess.run(
+                diode_send_file_command,
+                stdout=stdout,
+                stderr=stderr,
+                timeout=300,
+                text=True
+            )
+            if result.returncode != 0:
+                print(f"DEBUG: send_file_command failed: {result.stderr}")
+            result.check_returncode()
     else:
-        stdout = subprocess.PIPE
-        stderr = subprocess.STDOUT
+        # For background mode, we also need to capture output
+        with log_files(context.base_dir, 'send-file') as (stdout, stderr):
+            context.proc_diode_send_file = subprocess.Popen(
+                diode_send_file_command,
+                stdout=stdout,
+                stderr=stderr)
+            # No assert needed here, Popen always returns a valid object
 
-    diode_send_dir_command = [f'{context.bin_dir}/diode-send-dir', '--log-config', context.log_config_diode_send_dir, '--maximum-files', '1', '--to-tcp', '127.0.0.1:5000', context.send_dir.name]
+def send_file(context, name, size, background=False):
+    """Send a file with specified name and size."""
+    # Create file in send directory
+    filename = os.path.join(context.send_dir, name)
+    create_file(context, filename, size)
 
-    context.proc_diode_send_dir = subprocess.Popen(
-        diode_send_dir_command,
-        stdout=stdout, stderr=stderr)
+    # Send it (using buffer size of 8192 to limit bursts & packet drops)
+    send_file_command(context, filename, background)
 
-    time.sleep(1)
+def send_multiple_files(context):
+    """Send multiple files from context."""
+    # Send all files - use full paths from context.files
+    file_paths = [context.files[name]['path'] for name in context.files.keys()]
+    send_file_command(context, file_paths, background=False)
 
-@given('diode is started')
-def step_impl(context):
-    start_diode(context)
-
-@when('diode-receive is restarted')
-def step_impl(context):
-    stop_diode_receive(context)
-    # wait some time to prevent address already in use if restarted too quickly
-    time.sleep(5)
-    start_diode_receive(context)
-
-@when('diode-send is restarted')
-def step_impl(context):
-    stop_diode_send(context)
-    start_diode_send(context)
-
-@when('diode-file-receive is restarted')
-def step_impl(context):
-    stop_diode_file_receive(context)
-    # wait some time to prevent address already in use if restarted too quickly
-    time.sleep(5)
-    start_diode_file_receive(context)
-
-@when('diode-send-dir is started')
-def step_impl(context):
-    start_diode_send_dir(context)
-
-@given('diode is started with max throughput of {throughput} Mb/s')
-def step_diode_started_with_max_throughput(context, throughput):
-    # two possibilities : limit file system read throughput or configure the diode for that
-    context.read_rate = int(throughput)
-    start_throttled_diode(context, int(context.read_rate * 1000000 / 8))
-
-@given('diode is started with max throughput of {throughput} Mb/s and MTU {mtu}')
-def step_diode_started_with_max_throughput(context, throughput, mtu):
-    # two possibilities : limit file system read throughput or configure the diode for that
-    context.read_rate = int(throughput)
-    context.mtu = int(mtu)
-    start_throttled_diode(context, int(context.read_rate * 1000000 / 8))
-
-@given('encoding block size is {encoding} and repair block size is {repair}')
-def step_set_encoding_repair_block_size(context, encoding, repair):
-    context.repair_block = 20000
-    context.block_size = 20000
