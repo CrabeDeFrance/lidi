@@ -1,25 +1,32 @@
-# functions to be called before or after tests must put here
+# functions to be called before or after tests must be put here
 
 from tempfile import TemporaryDirectory
 import subprocess
 import time
 import os
 
-# function call before any feature or scenario
+from features.steps.diode import stop_throttled_diode
+from features.steps.utils import kill_process_safe
+
+# function called before any feature or scenario
 def before_all(context):
     # build all applications before running any test
-    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-receive', '--bin', 'diode-send', '--bin', 'network-behavior', '--bin', 'diode-receive-file', '--bin', 'diode-send-file', '--bin', 'diode-send-dir'])
-    proc.communicate()
+    try:
+        proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'diode-receive', '--bin', 'diode-send', '--bin', 'network-behavior', '--bin', 'diode-receive-file', '--bin', 'diode-send-file', '--bin', 'diode-send-dir'])
+        proc.communicate()
+    except FileNotFoundError:
+        pass
 
 
-# function called before every test : initialize context with default values
+# function called before each test: initialize context with default values
 def before_scenario(context, _feature):
     # test temp dir
     context.base_dir="/dev/shm/lidi"
+    
     if not os.path.isdir(context.base_dir):
         os.mkdir(context.base_dir)
 
-    # delete all files in folder
+    # delete all files in folder (keep directories)
     try:
          files = os.listdir(context.base_dir)
          for file in files:
@@ -29,10 +36,25 @@ def before_scenario(context, _feature):
     except OSError:
         print("Error occurred while deleting files.")
 
-    context.send_dir = TemporaryDirectory(dir=context.base_dir)
+    # Use explicit, static paths for directories
+    context.send_dir = os.path.join(context.base_dir, "send")
     context.send_ratelimit_dir = None
-    context.receive_dir = TemporaryDirectory(dir=context.base_dir)
-    context.log_dir = TemporaryDirectory(dir=context.base_dir)
+    context.receive_dir = os.path.join(context.base_dir, "receive")
+    context.log_dir = os.path.join(context.base_dir, "log")
+    
+    # Clean up directories from previous test
+    for directory in [context.send_dir, context.receive_dir, context.log_dir]:
+        try:
+            if os.path.isdir(directory):
+                import shutil
+                shutil.rmtree(directory)
+        except Exception as e:
+            print(f"Error cleaning up directory {directory}: {e}")
+    
+    # Create directories if they don't exist
+    os.makedirs(context.send_dir, exist_ok=True)
+    os.makedirs(context.receive_dir, exist_ok=True)
+    os.makedirs(context.log_dir, exist_ok=True)
 
     # files metadata
     context.files = {}
@@ -40,11 +62,14 @@ def before_scenario(context, _feature):
     # process instances
     context.proc_diode_receive = None
     context.proc_diode_send = None
+    context.proc_diode_send_file = None
     context.proc_diode_send_dir = None
     context.proc_network = None
     context.proc_diode_receive_file = None
-    context.proc_throttled_fs = None
-
+    
+    # directory containing binaries
+    context.bin_dir = "./target/release/"
+    
     # some possible options
     context.network_down_after = None
     context.network_up_after = None
@@ -53,55 +78,43 @@ def before_scenario(context, _feature):
     context.network_drop = None
     context.read_rate = None
 
-    # perf options
-    context.mtu = None
+    # port configuration
+    context.tcp_send_port = 4000
+    context.tcp_receive_port = 6000
+
     context.block_size = None
+    context.repair_block = None
+    context.mtu = None
 
     # display
-    context.quiet = False
     context.log_config_diode_receive = None
     context.log_config_diode_receive_file = None
     context.log_config_diode_send = None
     context.log_config_diode_send_dir = None
     context.log_config_network_behavior = None
 
-    context.bin_dir = "./target/release/"
-
-    setup_log_config(context, context.base_dir)
     context.lidi_config_path = context.base_dir
-
-    context.block_size = None
-    context.repair_block = None
-
-    # simple counter that can be used between steps
-    context.counter = 0
-
+    
+    # setup logging configuration
+    setup_log_config(context, context.base_dir)
 
 # function called after every test : cleanup (delete temp directories & kill processes)
-def after_scenario(context, _feature):
+def after_scenario(context, _scenario):
+    stop_throttled_diode(context)
+    
     # first kill processes
-    if context.proc_diode_receive:
-        context.proc_diode_receive.kill()
-    if context.proc_diode_send:
-        context.proc_diode_send.kill()
-    if context.proc_diode_send_dir:
-        context.proc_diode_send_dir.kill()
-    if context.proc_network:
-        context.proc_network.kill()
-    if context.proc_diode_receive_file:
-        context.proc_diode_receive_file.kill()
-    if context.proc_throttled_fs:
-        context.proc_throttled_fs.kill()
+    kill_process_safe('proc_diode_receive', 'diode-receive', context)
+    kill_process_safe('proc_diode_send', 'diode-send', context)
+    kill_process_safe('proc_diode_send_file', 'diode-send-file', context)
+    kill_process_safe('proc_diode_send_dir', 'diode-send-dir', context)
+    kill_process_safe('proc_network', 'network-behavior', context)
+    kill_process_safe('proc_diode_receive_file', 'diode-receive-file', context)
 
     # make sure everything is killed, even throttled_fs (fuse) which uses temp directories
     time.sleep(1)
 
-    # delete temp directories
-    context.send_dir.cleanup()
-    context.receive_dir.cleanup()
-    context.log_dir.cleanup()
-    if context.send_ratelimit_dir:
-        context.send_ratelimit_dir.cleanup()
+    # Clear files metadata
+    context.files.clear()
 
 def build_log_config(filename, level):
     return f"""

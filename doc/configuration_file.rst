@@ -54,10 +54,7 @@ Here is a sample of the configuration file :
    
    # UDP source address to use for client socket in format A.B.C.D:port. It is possible to use port 0 for automatic assignement.
    bind_udp = "127.0.0.1:0"
-   
-   # ratelimit Lidi output (UDP packets throughput). In Mbit/s.
-   max_bandwidth = 100
-   
+    
    # prometheus port
    # metrics = "0.0.0.0:9001"
    
@@ -87,8 +84,7 @@ Here is a sample of the configuration file :
 Options are detailed in the following chapters:
 
 * Mandatory network options
-   * `udp_addr`, `udp_port`, `bind_tcp` and `to_tcp` are explained in :ref:`network`
-   * `max_bandwidth` is described in :ref:`ratelimit`
+    * `udp_addr`, `udp_port`, `bind_tcp` and `to_tcp` are explained in :ref:`network`
 * Performance optimization options
    * `encoding_block_size` and `repair_block_size` are explained in :ref:`raptorq` 
    * `udp_mtu` is explained in :ref:`mtu`
