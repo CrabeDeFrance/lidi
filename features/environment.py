@@ -49,6 +49,11 @@ def before_all(context):
     ])
     proc.communicate()
 
+    # build lidi-send/lidi-receive without mimalloc, used by the Valgrind
+    # scenarios (see justfile: release_no_mimalloc)
+    proc = subprocess.Popen(['just', 'release_no_mimalloc'])
+    proc.communicate()
+
 
 # function called before each test: initialize context with default values
 def before_scenario(context, _feature):
@@ -115,6 +120,10 @@ def before_scenario(context, _feature):
     # directory containing lidi-clients binaries built without the inotify
     # feature (used to test the directory polling fallback)
     context.bin_dir_no_inotify = "./target/no-inotify/release/"
+
+    # directory containing lidi-send/lidi-receive binaries built without
+    # mimalloc (used by the Valgrind scenarios)
+    context.bin_dir_no_mimalloc = "./target/no-mimalloc/release/"
     
     # some possible options
     context.network_down_after = None

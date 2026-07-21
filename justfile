@@ -1,6 +1,13 @@
 release:
     cargo build --release --features mimalloc
 
+# lidi-send/lidi-receive built with default features (no mimalloc), used by
+# the Valgrind scenarios: mimalloc's internal bit tricks are known to trigger
+# Valgrind false positives ("uninitialised value" reports) unrelated to the
+# unsafe code the tests actually exercise (send-msg/send-mmsg socket paths).
+release_no_mimalloc:
+    cargo build --release --package lidi-send --package lidi-receive --target-dir target/no-mimalloc
+
 release_tcp_mmsg:
     cargo build --release --no-default-features --features from-tcp,to-tcp,tcp,receive-mmsg,send-mmsg,tcp
 

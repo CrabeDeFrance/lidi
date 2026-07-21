@@ -178,7 +178,8 @@ def build_lidi_send_command(context):
         else:
             delattr(context, 'heartbeat')
 
-    lidi_send_command = [f'{context.bin_dir}/lidi-send', lidi_config]
+    bin_dir = context.bin_dir_no_mimalloc if getattr(context, 'valgrind_send', False) else context.bin_dir
+    lidi_send_command = [f'{bin_dir}/lidi-send', lidi_config]
 
     if getattr(context, 'valgrind_send', False):
         valgrind_log = os.path.join(context.base_dir, 'valgrind_send.log')
@@ -215,7 +216,8 @@ def build_lidi_receive_command(context):
         else:
             delattr(context, 'heartbeat')
 
-    lidi_receive_command = [f'{context.bin_dir}/lidi-receive', lidi_config]
+    bin_dir = context.bin_dir_no_mimalloc if getattr(context, 'valgrind_receive', False) else context.bin_dir
+    lidi_receive_command = [f'{bin_dir}/lidi-receive', lidi_config]
 
     if getattr(context, 'valgrind_receive', False):
         valgrind_log = os.path.join(context.base_dir, 'valgrind_receive.log')
