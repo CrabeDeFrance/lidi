@@ -54,6 +54,10 @@ where
 
         log::error!("lost block {id} (failed to decode with {nb_packets} packets)");
 
+        // Decode failed, so `decoded` was never handed off downstream: give it back to the
+        // pool instead of dropping it here.
+        let _ = receiver.decode_buf_recycler_tx.try_send(decoded);
+
         receiver.to_dispatch.send(dispatch::Message::LostBlock)?;
     }
 
