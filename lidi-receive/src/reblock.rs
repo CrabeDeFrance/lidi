@@ -4,8 +4,58 @@
 use crate::{ClientLifecycle, dispatch};
 use lidi_protocol as protocol;
 use std::array;
+use std::sync::OnceLock;
 
 pub const WINDOW_WIDTH: u8 = u8::MAX / 2;
+
+#[cfg(feature = "prometheus")]
+mod metrics_handles {
+    use metrics::{Counter, Histogram};
+    use std::sync::OnceLock;
+
+    static DECODE_WITH_N_PACKETS: OnceLock<Histogram> = OnceLock::new();
+    static BLOCKS_DECODED: OnceLock<Counter> = OnceLock::new();
+    static BLOCKS_DECODE_FAILED: OnceLock<Counter> = OnceLock::new();
+    static BLOCKS_REASSEMBLED: OnceLock<Counter> = OnceLock::new();
+    static BLOCKS_LOST: OnceLock<Counter> = OnceLock::new();
+    static PACKETS_IGNORED: OnceLock<Counter> = OnceLock::new();
+
+    pub fn decode_with_n_packets() -> Histogram {
+        DECODE_WITH_N_PACKETS
+            .get_or_init(|| metrics::histogram!("lidi_receive_decode_with_n_packets"))
+            .clone()
+    }
+
+    pub fn blocks_decoded() -> Counter {
+        BLOCKS_DECODED
+            .get_or_init(|| metrics::counter!("lidi_receive_blocks_decoded"))
+            .clone()
+    }
+
+    pub fn blocks_decode_failed() -> Counter {
+        BLOCKS_DECODE_FAILED
+            .get_or_init(|| metrics::counter!("lidi_receive_blocks_decode_failed"))
+            .clone()
+    }
+
+    pub fn blocks_reassembled() -> Counter {
+        BLOCKS_REASSEMBLED
+            .get_or_init(|| metrics::counter!("lidi_receive_blocks_reassembled"))
+            .clone()
+    }
+
+    pub fn blocks_lost() -> Counter {
+        BLOCKS_LOST
+            .get_or_init(|| metrics::counter!("lidi_receive_blocks_lost"))
+            .clone()
+    }
+
+    pub fn packets_ignored() -> Counter {
+        PACKETS_IGNORED
+            .get_or_init(|| metrics::counter!("lidi_receive_packets_ignored"))
+            .clone()
+    }
+}
 
 struct Block {
     ignore: bool,
@@ -31,7 +81,7 @@ where
 
     #[cfg(feature = "prometheus")]
     #[allow(clippy::cast_precision_loss)]
-    metrics::histogram!("lidi_receive_decode_with_n_packets").record(nb_packets as f64);
+    metrics_handles::decode_with_n_packets().record(nb_packets as f64);
 
     // Pop a buffer a client thread sent back once done with a previous block, falling back to
     // a fresh, empty `Vec` if none is available yet (e.g. at start-up).
@@ -46,7 +96,7 @@ where
 
     if ok {
         #[cfg(feature = "prometheus")]
-        metrics::counter!("lidi_receive_blocks_decoded").increment(1);
+        metrics_handles::blocks_decoded().increment(1);
 
         log::trace!("block {id} decoded ({} bytes)", decoded.len());
 
@@ -56,7 +106,7 @@ where
         ))?;
     } else {
         #[cfg(feature = "prometheus")]
-        metrics::counter!("lidi_receive_blocks_decode_failed").increment(1);
+        metrics_handles::blocks_decode_failed().increment(1);
 
         log::error!("lost block {id} (failed to decode with {nb_packets} packets)");
 
@@ -68,7 +118,7 @@ where
     }
 
     #[cfg(feature = "prometheus")]
-    metrics::counter!("lidi_receive_blocks_reassembled").increment(1);
+    metrics_handles::blocks_reassembled().increment(1);
 
     log::trace!("reassembled block {id}");
 
@@ -79,7 +129,7 @@ where
 
         if !blocks[opposite].packets.is_empty() {
             #[cfg(feature = "prometheus")]
-            metrics::counter!("lidi_receive_blocks_lost").increment(1);
+            metrics_handles::blocks_lost().increment(1);
             log::error!("lost block {opposite} (too far)");
             log::warn!("synchronization lost received, propagating");
             receiver.to_dispatch.send(dispatch::Message::LostBlock)?;
@@ -244,7 +294,7 @@ where
 
             if blocks[id as usize].ignore {
                 #[cfg(feature = "prometheus")]
-                metrics::counter!("lidi_receive_packets_ignored").increment(1);
+                metrics_handles::packets_ignored().increment(1);
             } else {
                 blocks[id as usize].packets.push(packet);
             }
