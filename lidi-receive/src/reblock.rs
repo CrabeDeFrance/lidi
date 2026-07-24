@@ -18,6 +18,7 @@ fn send_to_dispatch<Lifecycle>(
     session_id: protocol::SessionId,
     id: u8,
     blocks: &mut [Block],
+    payload_buf_recycler: &crossbeam_channel::Sender<Vec<u8>>,
 ) -> Result<bool, crate::Error>
 where
     Lifecycle: ClientLifecycle,
@@ -36,7 +37,12 @@ where
     // a fresh, empty `Vec` if none is available yet (e.g. at start-up).
     let mut decoded = receiver.decode_buf_recycler_rx.try_recv().unwrap_or_default();
     let ok = receiver.raptorq.decode(&mut block.decoder, &block.packets, &mut decoded);
-    block.packets.clear();
+
+    // Recycle the payload buffers from each packet: drain and send each one back to the udp
+    // worker instead of dropping them here. Ignore the error if the receiver is gone.
+    for packet in block.packets.drain(..) {
+        let _ = payload_buf_recycler.try_send(packet.into_data());
+    }
 
     if ok {
         #[cfg(feature = "prometheus")]
@@ -92,6 +98,7 @@ fn flush_pending_blocks<Lifecycle>(
     cur_id: &mut u8,
     min_nb_packets: usize,
     blocks: &mut [Block],
+    payload_buf_recycler: &crossbeam_channel::Sender<Vec<u8>>,
 ) -> Result<(), crate::Error>
 where
     Lifecycle: ClientLifecycle,
@@ -107,7 +114,7 @@ where
                 #[cfg(feature = "prometheus")]
                 metrics::counter!("lidi_receive_blocks_lost").increment(1);
             }
-            let _ = send_to_dispatch(receiver, session_id, *cur_id, blocks)?;
+            let _ = send_to_dispatch(receiver, session_id, *cur_id, blocks, payload_buf_recycler)?;
         }
         *cur_id = cur_id.wrapping_add(1);
     }
@@ -150,6 +157,7 @@ pub fn start<Lifecycle>(
     #[cfg(feature = "receive-mmsg")] packet_vec_recycler: &crossbeam_channel::Sender<
         Vec<raptorq::EncodingPacket>,
     >,
+    payload_buf_recycler: &crossbeam_channel::Sender<Vec<u8>>,
 ) -> Result<(), crate::Error>
 where
     Lifecycle: ClientLifecycle,
@@ -189,6 +197,7 @@ where
                         &mut cur_id,
                         min_nb_packets,
                         &mut blocks,
+                        payload_buf_recycler,
                     )?;
                 }
 
@@ -267,6 +276,7 @@ where
                 session_id,
                 cur_id,
                 &mut blocks,
+                payload_buf_recycler,
             )?;
             cur_id = cur_id.wrapping_add(1);
         }
@@ -277,6 +287,7 @@ where
                 session_id,
                 cur_id,
                 &mut blocks,
+                payload_buf_recycler,
             )?;
             cur_id = cur_id.wrapping_add(1);
         }

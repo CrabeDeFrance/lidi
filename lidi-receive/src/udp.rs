@@ -16,6 +16,12 @@ fn take_recycled(
     recycler.try_recv().unwrap_or_default()
 }
 
+// Pops a payload buffer sent back by reblock, falling back to a fresh, empty `Vec` if none is
+// available yet (e.g. at start-up).
+fn take_recycled_buf(recycler: &crossbeam_channel::Receiver<Vec<u8>>) -> Vec<u8> {
+    recycler.try_recv().unwrap_or_default()
+}
+
 // Updates `*session_id` and notifies reblock whenever a datagram's session id doesn't match the
 // one currently tracked (which also covers the very first datagram, since `session_id` starts
 // at 0 and real session ids never are).
@@ -43,6 +49,7 @@ pub fn start<Lifecycle>(
     #[cfg(feature = "receive-mmsg")] packet_vec_recycler: &crossbeam_channel::Receiver<
         Vec<raptorq::EncodingPacket>,
     >,
+    payload_buf_recycler: &crossbeam_channel::Receiver<Vec<u8>>,
 ) -> Result<(), crate::Error>
 where
     Lifecycle: ClientLifecycle,
@@ -110,7 +117,8 @@ where
 
                 track_session(&mut session_id, datagram_session_id, to_reblock)?;
 
-                let packet = raptorq::EncodingPacket::deserialize(packet);
+                let buf = take_recycled_buf(payload_buf_recycler);
+                let packet = raptorq::EncodingPacket::deserialize_into(packet, buf);
 
                 #[cfg(not(feature = "receive-mmsg"))]
                 to_reblock.send(reblock::Message::Packet(packet))?;
@@ -132,14 +140,14 @@ where
                 track_session(&mut session_id, datagram_session_id, to_reblock)?;
 
                 let mut packets = take_recycled(packet_vec_recycler);
-                packets.extend((0..nb_msg).filter_map(|i| {
+                for i in 0..nb_msg {
                     let (datagram_session_id, datagram) = protocol::session_split(udp.datagram(i));
                     if datagram_session_id == session_id {
-                        Some(raptorq::EncodingPacket::deserialize(datagram))
-                    } else {
-                        None
+                        let buf = take_recycled_buf(payload_buf_recycler);
+                        let packet = raptorq::EncodingPacket::deserialize_into(datagram, buf);
+                        packets.push(packet);
                     }
-                }));
+                }
                 log::trace!(
                     "UDP recv: sending {} packets to reblock queue",
                     packets.len()
