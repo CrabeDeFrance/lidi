@@ -27,7 +27,7 @@ where
     block.ignore = true;
     let nb_packets = block.packets.len();
 
-    log::debug!("received block {id} to decode ({nb_packets} packets)");
+    log::trace!("received block {id} to decode ({nb_packets} packets)");
 
     #[cfg(feature = "prometheus")]
     #[allow(clippy::cast_precision_loss)]
@@ -210,7 +210,7 @@ where
 
                     session_id = new_session_id;
 
-                    log::debug!("new session is {session_id:x}");
+                    log::trace!("new session is {session_id:x}");
 
                     receiver
                         .to_dispatch
