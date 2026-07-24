@@ -9,6 +9,7 @@ use clap::Parser;
 use std::{env, fmt, net, path};
 
 /// Configuration model (TOML file and command line) shared by the sender and the receiver.
+pub mod allocator;
 pub mod config;
 /// Content hashing helper used to check transfer integrity.
 #[cfg(feature = "hash")]
@@ -20,7 +21,7 @@ pub mod socket;
 pub mod tls;
 
 /// Human-readable name of the global allocator selected at compilation, for logging.
-#[cfg(not(feature = "mimalloc"))]
+#[cfg(not(any(feature = "mimalloc", feature = "alloc-trace")))]
 pub const ALLOCATOR_NAME: &str = "default allocator";
 
 #[cfg(feature = "mimalloc")]
@@ -29,6 +30,11 @@ static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 /// Human-readable name of the global allocator selected at compilation, for logging.
 #[cfg(feature = "mimalloc")]
 pub const ALLOCATOR_NAME: &str = "mimalloc";
+
+#[cfg(feature = "alloc-trace")]
+pub const ALLOCATOR_NAME: &str = "tracing allocator";
+
+pub use allocator::{enable_tracing, disable_tracing};
 
 /// Errors that can occur while parsing arguments, loading configuration or initializing the
 /// logger, TLS or the Prometheus exporter.

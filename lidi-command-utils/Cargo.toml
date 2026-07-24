@@ -67,8 +67,19 @@ optional = true
 default-features = false
 features = [ "std", "xxhash3_128" ]
 
+[dependencies.backtrace]
+version = "0"
+default-features = false
+features = [ "std" ]
+
+[dependencies.parking_lot]
+version = "0"
+default-features = false
+features = [ "wasm-bindgen" ]
+
 [features]
 default = [ ]
+alloc-trace = [ ]
 command-line = [ "dep:clap" ]
 hash = [ "dep:twox-hash" ]
 log4rs = [ "dep:log4rs" ]

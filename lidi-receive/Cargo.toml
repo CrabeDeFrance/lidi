@@ -47,6 +47,7 @@ features = [ "std" ]
 
 [features]
 default = [ "command-line", "to-tcp", "to-tls", "to-unix", "hash", "heartbeat", "log4rs", "prometheus", "receive-native", "receive-msg", "receive-mmsg" ]
+alloc-trace = [ "lidi-command-utils/alloc-trace" ]
 command-line = [ "lidi-command-utils/command-line" ]
 to-tcp = [ ]
 to-tls = [ "lidi-command-utils/tls" ]

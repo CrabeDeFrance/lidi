@@ -98,6 +98,11 @@ fn main() {
         lidi_command_utils::ALLOCATOR_NAME
     );
 
+    // Enable allocation tracing if requested via environment variable
+    if let Ok(trace_path) = std::env::var("LIDI_ALLOC_TRACE") {
+        lidi_command_utils::enable_tracing(&trace_path);
+    }
+
     // Validate that at least one endpoint is configured
     if config.receive.to().is_empty() {
         log::error!(
