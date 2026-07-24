@@ -502,6 +502,12 @@ where
             let (packet_vec_recycler_tx, packet_vec_recycler_rx) =
                 crossbeam_channel::unbounded::<Vec<raptorq::EncodingPacket>>();
 
+            // Recycles the Vec<u8> payload buffers from EncodingPackets: reblock drains each
+            // packet's buffer from decoded blocks and sends it back via the channel, so udp can
+            // reuse it for the next packet's deserialization instead of allocating. SPSC per port.
+            let (payload_buf_recycler_tx, payload_buf_recycler_rx) =
+                crossbeam_channel::unbounded::<Vec<u8>>();
+
             thread::Builder::new()
                 .name(format!("reblock_{port}"))
                 .spawn_scoped(scope, move || {
@@ -510,6 +516,7 @@ where
                         &for_reblock,
                         #[cfg(feature = "receive-mmsg")]
                         &packet_vec_recycler_tx,
+                        &payload_buf_recycler_tx,
                     ) {
                         log::error!("fatal reblock error: {e}");
                     }
@@ -524,6 +531,7 @@ where
                         &to_reblock,
                         #[cfg(feature = "receive-mmsg")]
                         &packet_vec_recycler_rx,
+                        &payload_buf_recycler_rx,
                     ) {
                         log::error!("fatal recv_{port} error: {e}");
                     }
