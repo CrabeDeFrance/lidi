@@ -1,6 +1,6 @@
 //! Worker that actually receives packets from the UDP diode link
 
-use crate::{ClientLifecycle, reblock, socket};
+use crate::{ClientLifecycle, EncodingPacketExt, reblock, socket};
 use lidi_protocol as protocol;
 use std::{
     io,

@@ -39,6 +39,27 @@ use std::net;
 use std::os::unix;
 use std::{fmt, io, os, thread, time};
 
+trait EncodingPacketExt {
+    fn into_data(self) -> Vec<u8>;
+    fn deserialize_into(data: &[u8], buf: Vec<u8>) -> Self;
+}
+
+impl EncodingPacketExt for raptorq::EncodingPacket {
+    fn into_data(self) -> Vec<u8> {
+        self.split().1
+    }
+
+    fn deserialize_into(data: &[u8], mut buf: Vec<u8>) -> Self {
+        let payload_data = [data[0], data[1], data[2], data[3]];
+        buf.clear();
+        buf.extend_from_slice(&data[4..]);
+        Self::new(
+            raptorq::PayloadId::deserialize(&payload_data),
+            buf,
+        )
+    }
+}
+
 mod client;
 mod client_reorder;
 mod clients;
