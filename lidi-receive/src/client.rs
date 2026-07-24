@@ -23,6 +23,13 @@ where
 
     let mut client = receiver.client_lifecycle.start(endpoint, client_id)?;
 
+    // Gives the block's buffer back to reblock instead of dropping it, mirroring the
+    // udp<->reblock packet-batch recycler. Ignores the error: if every reblock thread is gone
+    // there's nothing to recycle into and the `Vec` is simply dropped.
+    let recycle = |receiver: &crate::Receiver<Lifecycle>, block: protocol::Block| {
+        let _ = receiver.decode_buf_recycler_tx.send(block.into_data());
+    };
+
     loop {
         let block = for_client.recv()?;
 
@@ -34,6 +41,7 @@ where
                 if endpoint_options.flush {
                     client.flush()?;
                 }
+                recycle(receiver, block);
             }
             protocol::BlockType::End => {
                 client.write_all(payload)?;
@@ -41,15 +49,19 @@ where
                 if let Err(e) = receiver.client_lifecycle.end(client, true) {
                     log::error!("client {client_id:x}: {e}");
                 }
+                recycle(receiver, block);
                 break;
             }
             protocol::BlockType::Abort => {
                 if let Err(e) = receiver.client_lifecycle.end(client, false) {
                     log::error!("client {client_id:x}: {e}");
                 }
+                recycle(receiver, block);
                 break;
             }
-            protocol::BlockType::Start | protocol::BlockType::Heartbeat => (),
+            protocol::BlockType::Start | protocol::BlockType::Heartbeat => {
+                recycle(receiver, block);
+            }
         }
     }
 

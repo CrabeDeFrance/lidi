@@ -450,6 +450,13 @@ impl Block {
         Self { data }
     }
 
+    /// Gives up this block's underlying buffer, e.g. so a caller done with it can recycle the
+    /// allocation instead of dropping it.
+    #[must_use]
+    pub fn into_data(self) -> Vec<u8> {
+        self.data
+    }
+
     /// Maximum number of data bytes that fit in a single block for the given [`RaptorQ`]
     /// configuration (the block size minus the header overhead).
     #[must_use]
