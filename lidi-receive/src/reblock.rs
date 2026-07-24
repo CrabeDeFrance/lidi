@@ -4,7 +4,6 @@
 use crate::{ClientLifecycle, EncodingPacketExt, dispatch};
 use lidi_protocol as protocol;
 use std::array;
-use std::sync::OnceLock;
 
 pub const WINDOW_WIDTH: u8 = u8::MAX / 2;
 
@@ -85,8 +84,13 @@ where
 
     // Pop a buffer a client thread sent back once done with a previous block, falling back to
     // a fresh, empty `Vec` if none is available yet (e.g. at start-up).
-    let mut decoded = receiver.decode_buf_recycler_rx.try_recv().unwrap_or_default();
-    let ok = receiver.raptorq.decode(&mut block.decoder, &block.packets, &mut decoded);
+    let mut decoded = receiver
+        .decode_buf_recycler_rx
+        .try_recv()
+        .unwrap_or_default();
+    let ok = receiver
+        .raptorq
+        .decode(&mut block.decoder, &block.packets, &mut decoded);
 
     // Recycle the payload buffers from each packet: drain and send each one back to the udp
     // worker instead of dropping them here. Ignore the error if the receiver is gone.

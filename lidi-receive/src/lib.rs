@@ -68,6 +68,55 @@ mod reblock;
 mod socket;
 mod udp;
 
+#[cfg(feature = "prometheus")]
+mod metrics_handles {
+    use metrics::Gauge;
+    use std::sync::OnceLock;
+
+    static REBLOCK_QUEUE_LEN: OnceLock<Gauge> = OnceLock::new();
+    static DISPATCH_QUEUE_LEN: OnceLock<Gauge> = OnceLock::new();
+    static CLIENTS_QUEUE_LEN: OnceLock<Gauge> = OnceLock::new();
+    static ACTIVE_TRANSFERS_LEN: OnceLock<Gauge> = OnceLock::new();
+    static CLIENT_SENDQ_TOTAL_LEN: OnceLock<Gauge> = OnceLock::new();
+    static CLIENT_SENDQ_MAX_LEN: OnceLock<Gauge> = OnceLock::new();
+
+    pub fn reblock_queue_len() -> Gauge {
+        REBLOCK_QUEUE_LEN
+            .get_or_init(|| metrics::gauge!("lidi_receive_reblock_queue_len"))
+            .clone()
+    }
+
+    pub fn dispatch_queue_len() -> Gauge {
+        DISPATCH_QUEUE_LEN
+            .get_or_init(|| metrics::gauge!("lidi_receive_dispatch_queue_len"))
+            .clone()
+    }
+
+    pub fn clients_queue_len() -> Gauge {
+        CLIENTS_QUEUE_LEN
+            .get_or_init(|| metrics::gauge!("lidi_receive_clients_queue_len"))
+            .clone()
+    }
+
+    pub fn active_transfers_len() -> Gauge {
+        ACTIVE_TRANSFERS_LEN
+            .get_or_init(|| metrics::gauge!("lidi_receive_active_transfers_len"))
+            .clone()
+    }
+
+    pub fn client_sendq_total_len() -> Gauge {
+        CLIENT_SENDQ_TOTAL_LEN
+            .get_or_init(|| metrics::gauge!("lidi_receive_client_sendq_total_len"))
+            .clone()
+    }
+
+    pub fn client_sendq_max_len() -> Gauge {
+        CLIENT_SENDQ_MAX_LEN
+            .get_or_init(|| metrics::gauge!("lidi_receive_client_sendq_max_len"))
+            .clone()
+    }
+}
+
 /// Errors returned by the receiver engine and its workers.
 pub enum Error {
     /// An underlying I/O operation failed.
@@ -352,14 +401,13 @@ where
                     queues.len(),
                     reblock_total
                 );
-                metrics::gauge!("lidi_receive_reblock_queue_len").set(reblock_total as f64);
+                metrics_handles::reblock_queue_len().set(reblock_total as f64);
             }
 
-            metrics::gauge!("lidi_receive_dispatch_queue_len").set(self.for_dispatch.len() as f64);
-            metrics::gauge!("lidi_receive_clients_queue_len").set(self.for_clients.len() as f64);
+            metrics_handles::dispatch_queue_len().set(self.for_dispatch.len() as f64);
+            metrics_handles::clients_queue_len().set(self.for_clients.len() as f64);
 
-            metrics::gauge!("lidi_receive_active_transfers_len")
-                .set(self.active_transfers.len() as f64);
+            metrics_handles::active_transfers_len().set(self.active_transfers.len() as f64);
 
             let (total, max) =
                 self.active_transfers
@@ -368,8 +416,8 @@ where
                         let len = ref_multi.value().len();
                         (t + len, m.max(len))
                     });
-            metrics::gauge!("lidi_receive_client_sendq_total_len").set(total as f64);
-            metrics::gauge!("lidi_receive_client_sendq_max_len").set(max as f64);
+            metrics_handles::client_sendq_total_len().set(total as f64);
+            metrics_handles::client_sendq_max_len().set(max as f64);
         }
     }
 
@@ -523,11 +571,26 @@ where
             let (packet_vec_recycler_tx, packet_vec_recycler_rx) =
                 crossbeam_channel::unbounded::<Vec<raptorq::EncodingPacket>>();
 
+            // Pre-populate the packet batch pool with empty vecs. This avoids allocations when
+            // udp worker needs a batch.
+            #[cfg(feature = "receive-mmsg")]
+            for _ in 0..4 {
+                let _ = packet_vec_recycler_tx.try_send(Vec::new());
+            }
+
             // Recycles the Vec<u8> payload buffers from EncodingPackets: reblock drains each
             // packet's buffer from decoded blocks and sends it back via the channel, so udp can
             // reuse it for the next packet's deserialization instead of allocating. SPSC per port.
             let (payload_buf_recycler_tx, payload_buf_recycler_rx) =
                 crossbeam_channel::unbounded::<Vec<u8>>();
+
+            // Pre-populate the payload buffer pool with buffers that have capacity for a full UDP
+            // datagram. This avoids allocations during `extend_from_slice()` in deserialize_into().
+            for _ in 0..2048 {
+                let mut buf = Vec::new();
+                buf.reserve(self.config.mtu as usize);
+                let _ = payload_buf_recycler_tx.try_send(buf);
+            }
 
             thread::Builder::new()
                 .name(format!("reblock_{port}"))

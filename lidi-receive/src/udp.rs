@@ -5,7 +5,6 @@ use lidi_protocol as protocol;
 use std::{
     io,
     net::{self, ToSocketAddrs},
-    sync::OnceLock,
 };
 
 // Pops a drained batch sent back by reblock, falling back to a fresh, empty `Vec` if none is
