@@ -32,11 +32,11 @@ fn track_session(
 ) -> Result<(), crate::Error> {
     if *session_id == 0 {
         *session_id = datagram_session_id;
-        log::debug!("session is {session_id:x}");
+        log::trace!("session is {session_id:x}");
         to_reblock.send(reblock::Message::NewSession(*session_id))?;
     } else if datagram_session_id != *session_id {
         *session_id = datagram_session_id;
-        log::debug!("new session is {session_id:x}");
+        log::trace!("new session is {session_id:x}");
         to_reblock.send(reblock::Message::NewSession(*session_id))?;
     }
     Ok(())
