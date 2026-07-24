@@ -146,6 +146,10 @@ where
                     log::debug!("heartbeat received");
                     last_heartbeat = time::Instant::now();
                 }
+
+                // Never forwarded to a client, so recycle it back here instead of dropping
+                // it, mirroring lidi-send's block_recycler and receive's packet_vec_recycler.
+                let _ = receiver.decode_buf_recycler_tx.try_send(block.into_data());
             }
 
             protocol::BlockType::Start => {
@@ -188,6 +192,11 @@ where
                         }
                     }
                 }
+
+                // Only the EndpointId was extracted above; the block itself is never
+                // forwarded, so recycle it back here instead of dropping it, mirroring
+                // lidi-send's block_recycler and receive's packet_vec_recycler.
+                let _ = receiver.decode_buf_recycler_tx.try_send(block.into_data());
             }
 
             protocol::BlockType::Data | protocol::BlockType::Abort | protocol::BlockType::End => {

@@ -258,12 +258,14 @@ where
         dashmap::DashMap<protocol::ClientId, crossbeam_channel::Sender<protocol::Block>>,
     failed_transfers: dashmap::DashSet<protocol::ClientId>,
     // Recycles the decoded block buffers `reblock` allocates: client workers send back a
-    // block's buffer once they're done with it (see client.rs), and reblock pops one from here
-    // instead of allocating before decoding the next block, falling back to a fresh Vec if the
-    // pool is momentarily empty. Global (not per-port) since every reblock thread decodes into
-    // buffers of the same size and any client thread may finish with one, mirroring the
-    // udp<->reblock packet-batch recycler but as a shared field rather than a per-port channel,
-    // since producers and consumers here aren't paired one-to-one.
+    // block's buffer once they're done with it (see client.rs), dispatch does the same for
+    // Heartbeat/Start blocks it never forwards anywhere (see dispatch.rs), and reblock pops
+    // one from here instead of allocating before decoding the next block, falling back to a
+    // fresh Vec if the pool is momentarily empty. Global (not per-port) since every reblock
+    // thread decodes into buffers of the same size and any client or dispatch thread may
+    // finish with one, mirroring lidi-send's block_recycler and the udp<->reblock
+    // packet-batch recycler but as a shared field rather than a per-port channel, since
+    // producers and consumers here aren't paired one-to-one.
     decode_buf_recycler_tx: crossbeam_channel::Sender<Vec<u8>>,
     decode_buf_recycler_rx: crossbeam_channel::Receiver<Vec<u8>>,
     #[cfg(feature = "prometheus")]
@@ -371,7 +373,14 @@ where
             0 => crossbeam_channel::unbounded(),
             n => crossbeam_channel::bounded(n),
         };
-        let (decode_buf_recycler_tx, decode_buf_recycler_rx) = crossbeam_channel::unbounded();
+        // Bounded (unlike the per-port packet_vec_recycler) since this pool is shared by every
+        // client and dispatch thread across all ports: capped to one spare buffer per producer
+        // thread (max_clients client workers + one dispatch thread) so a burst of finished
+        // blocks can't grow the pool without limit. Producers use `try_send` and drop the
+        // buffer on `Full` exactly like they already do on `Disconnected`, so a full pool never
+        // blocks a producer.
+        let (decode_buf_recycler_tx, decode_buf_recycler_rx) =
+            crossbeam_channel::bounded(config.max_clients as usize + 1);
 
         Ok(Self {
             config,
