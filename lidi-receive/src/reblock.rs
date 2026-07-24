@@ -3,13 +3,14 @@
 
 use crate::{ClientLifecycle, dispatch};
 use lidi_protocol as protocol;
-use std::{array, mem};
+use std::array;
 
 pub const WINDOW_WIDTH: u8 = u8::MAX / 2;
 
 struct Block {
     ignore: bool,
     packets: Vec<raptorq::EncodingPacket>,
+    decoder: raptorq::SourceBlockDecoder,
 }
 
 fn send_to_dispatch<Lifecycle>(
@@ -17,54 +18,41 @@ fn send_to_dispatch<Lifecycle>(
     session_id: protocol::SessionId,
     id: u8,
     blocks: &mut [Block],
-    packet_vec_pool: &mut Vec<Vec<raptorq::EncodingPacket>>,
 ) -> Result<bool, crate::Error>
 where
     Lifecycle: ClientLifecycle,
 {
-    blocks[id as usize].ignore = true;
-
-    let capacity = blocks[id as usize].packets.capacity();
-    let replacement = packet_vec_pool
-        .pop()
-        .unwrap_or_else(|| Vec::with_capacity(capacity));
-    let mut packets = mem::replace(&mut blocks[id as usize].packets, replacement);
-
-    let nb_packets = packets.len();
+    let block = &mut blocks[id as usize];
+    block.ignore = true;
+    let nb_packets = block.packets.len();
 
     log::debug!("received block {id} to decode ({nb_packets} packets)");
 
     #[cfg(feature = "prometheus")]
     #[allow(clippy::cast_precision_loss)]
-    metrics::histogram!("lidi_receive_decode_with_n_packets").record(packets.len() as f64);
+    metrics::histogram!("lidi_receive_decode_with_n_packets").record(nb_packets as f64);
 
-    // `drain` empties `packets` into the decoder without giving up its allocation, so it can be
-    // pushed back onto the pool below for the next block to reuse. `into_iter()` (clippy's usual
-    // suggestion) would drop the allocation instead, defeating the point of the pool.
-    #[allow(clippy::iter_with_drain)]
-    let decoded = receiver.raptorq.decode(id, packets.drain(..));
-    packet_vec_pool.push(packets);
+    let mut decoded = Vec::new();
+    let ok = receiver.raptorq.decode(&mut block.decoder, &block.packets, &mut decoded);
+    block.packets.clear();
 
-    match decoded {
-        None => {
-            #[cfg(feature = "prometheus")]
-            metrics::counter!("lidi_receive_blocks_decode_failed").increment(1);
+    if ok {
+        #[cfg(feature = "prometheus")]
+        metrics::counter!("lidi_receive_blocks_decoded").increment(1);
 
-            log::error!("lost block {id} (failed to decode with {nb_packets} packets)");
+        log::trace!("block {id} decoded ({} bytes)", decoded.len());
 
-            receiver.to_dispatch.send(dispatch::Message::LostBlock)?;
-        }
-        Some(block) => {
-            #[cfg(feature = "prometheus")]
-            metrics::counter!("lidi_receive_blocks_decoded").increment(1);
+        receiver.to_dispatch.send(dispatch::Message::Block(
+            session_id,
+            protocol::Block::deserialize(decoded),
+        ))?;
+    } else {
+        #[cfg(feature = "prometheus")]
+        metrics::counter!("lidi_receive_blocks_decode_failed").increment(1);
 
-            log::trace!("block {id} decoded ({} bytes)", block.len());
+        log::error!("lost block {id} (failed to decode with {nb_packets} packets)");
 
-            receiver.to_dispatch.send(dispatch::Message::Block(
-                session_id,
-                protocol::Block::deserialize(block),
-            ))?;
-        }
+        receiver.to_dispatch.send(dispatch::Message::LostBlock)?;
     }
 
     #[cfg(feature = "prometheus")]
@@ -98,7 +86,6 @@ fn flush_pending_blocks<Lifecycle>(
     cur_id: &mut u8,
     min_nb_packets: usize,
     blocks: &mut [Block],
-    packet_vec_pool: &mut Vec<Vec<raptorq::EncodingPacket>>,
 ) -> Result<(), crate::Error>
 where
     Lifecycle: ClientLifecycle,
@@ -114,7 +101,7 @@ where
                 #[cfg(feature = "prometheus")]
                 metrics::counter!("lidi_receive_blocks_lost").increment(1);
             }
-            let _ = send_to_dispatch(receiver, session_id, *cur_id, blocks, packet_vec_pool)?;
+            let _ = send_to_dispatch(receiver, session_id, *cur_id, blocks)?;
         }
         *cur_id = cur_id.wrapping_add(1);
     }
@@ -166,9 +153,10 @@ where
     let nb_packets = usize::try_from(receiver.raptorq.nb_packets())
         .map_err(|e| crate::Error::Internal(format!("nb_packets: {e}")))?;
 
-    let mut blocks: [_; u8::MAX as usize + 1] = array::from_fn(|_| Block {
+    let mut blocks: [_; u8::MAX as usize + 1] = array::from_fn(|i| Block {
         ignore: true,
         packets: Vec::with_capacity(nb_packets),
+        decoder: receiver.raptorq.new_decoder(i as u8),
     });
 
     let mut session_id = 0;
@@ -176,10 +164,6 @@ where
     let mut cur_id: u8 = 0;
 
     let mut reset = true;
-
-    // Recycled across blocks: `send_to_dispatch` pops a drained `Vec` from here instead of
-    // allocating, and pushes the one it just drained back once decoding is done.
-    let mut packet_vec_pool: Vec<Vec<raptorq::EncodingPacket>> = Vec::new();
 
     loop {
         // Only mutated (via `drain`) when receive-mmsg is enabled, to reclaim the Vec below.
@@ -197,7 +181,6 @@ where
                         &mut cur_id,
                         min_nb_packets,
                         &mut blocks,
-                        &mut packet_vec_pool,
                     )?;
                 }
 
@@ -276,7 +259,6 @@ where
                 session_id,
                 cur_id,
                 &mut blocks,
-                &mut packet_vec_pool,
             )?;
             cur_id = cur_id.wrapping_add(1);
         }
@@ -287,7 +269,6 @@ where
                 session_id,
                 cur_id,
                 &mut blocks,
-                &mut packet_vec_pool,
             )?;
             cur_id = cur_id.wrapping_add(1);
         }

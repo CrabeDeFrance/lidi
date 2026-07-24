@@ -203,23 +203,23 @@ impl RaptorQ {
         packets
     }
 
+    #[must_use]
+    pub fn new_decoder(&self, block_id: u8) -> raptorq::SourceBlockDecoder {
+        raptorq::SourceBlockDecoder::new(block_id, &self.config, u64::from(self.transfer_length))
+    }
+
     /// Attempts to reconstruct the source data of block `block_id` from the received `packets`.
     /// Accepting any `IntoIterator` (instead of requiring an owned `Vec`) lets callers pass a
     /// `Vec::drain(..)` so they can recycle the emptied `Vec`'s allocation once decoding is done.
     ///
     /// Returns `None` if not enough packets were received to decode the block.
-    #[must_use]
     pub fn decode(
         &self,
-        block_id: u8,
-        packets: impl IntoIterator<Item = raptorq::EncodingPacket>,
-    ) -> Option<Vec<u8>> {
-        let mut decoder = raptorq::SourceBlockDecoder::new(
-            block_id,
-            &self.config,
-            u64::from(self.transfer_length),
-        );
-        decoder.decode(packets)
+        decoder: &mut raptorq::SourceBlockDecoder,
+        packets: &[raptorq::EncodingPacket],
+        out: &mut Vec<u8>,
+    ) -> bool {
+        decoder.decode_to(packets, out)
     }
 }
 
