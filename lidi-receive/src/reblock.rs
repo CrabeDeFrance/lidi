@@ -32,7 +32,9 @@ where
     #[allow(clippy::cast_precision_loss)]
     metrics::histogram!("lidi_receive_decode_with_n_packets").record(nb_packets as f64);
 
-    let mut decoded = Vec::new();
+    // Pop a buffer a client thread sent back once done with a previous block, falling back to
+    // a fresh, empty `Vec` if none is available yet (e.g. at start-up).
+    let mut decoded = receiver.decode_buf_recycler_rx.try_recv().unwrap_or_default();
     let ok = receiver.raptorq.decode(&mut block.decoder, &block.packets, &mut decoded);
     block.packets.clear();
 
@@ -156,6 +158,8 @@ where
     let mut blocks: [_; u8::MAX as usize + 1] = array::from_fn(|i| Block {
         ignore: true,
         packets: Vec::with_capacity(nb_packets),
+        // `i` ranges over the array's own length (`u8::MAX as usize + 1`), so it always fits.
+        #[allow(clippy::cast_possible_truncation)]
         decoder: receiver.raptorq.new_decoder(i as u8),
     });
 

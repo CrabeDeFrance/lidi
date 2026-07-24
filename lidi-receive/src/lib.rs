@@ -278,6 +278,15 @@ where
     active_transfers:
         dashmap::DashMap<protocol::ClientId, crossbeam_channel::Sender<protocol::Block>>,
     failed_transfers: dashmap::DashSet<protocol::ClientId>,
+    // Recycles the decoded block buffers `reblock` allocates: client workers send back a
+    // block's buffer once they're done with it (see client.rs), and reblock pops one from here
+    // instead of allocating before decoding the next block, falling back to a fresh Vec if the
+    // pool is momentarily empty. Global (not per-port) since every reblock thread decodes into
+    // buffers of the same size and any client thread may finish with one, mirroring the
+    // udp<->reblock packet-batch recycler but as a shared field rather than a per-port channel,
+    // since producers and consumers here aren't paired one-to-one.
+    decode_buf_recycler_tx: crossbeam_channel::Sender<Vec<u8>>,
+    decode_buf_recycler_rx: crossbeam_channel::Receiver<Vec<u8>>,
     #[cfg(feature = "prometheus")]
     reblock_queues: std::sync::RwLock<Vec<crossbeam_channel::Receiver<reblock::Message>>>,
     client_lifecycle: Lifecycle,
@@ -383,6 +392,7 @@ where
             0 => crossbeam_channel::unbounded(),
             n => crossbeam_channel::bounded(n),
         };
+        let (decode_buf_recycler_tx, decode_buf_recycler_rx) = crossbeam_channel::unbounded();
 
         Ok(Self {
             config,
@@ -395,6 +405,8 @@ where
             failed_transfers: dashmap::DashSet::new(),
             #[cfg(feature = "prometheus")]
             reblock_queues: std::sync::RwLock::new(Vec::new()),
+            decode_buf_recycler_tx,
+            decode_buf_recycler_rx,
             client_lifecycle,
         })
     }
