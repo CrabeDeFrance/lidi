@@ -25,9 +25,14 @@ where
 
     // Gives the block's buffer back to reblock instead of dropping it, mirroring the
     // udp<->reblock packet-batch recycler. Ignores the error: if every reblock thread is gone
-    // there's nothing to recycle into and the `Vec` is simply dropped.
+    // there's nothing to recycle into, or the (bounded) pool is already full, the `Vec` is
+    // simply dropped.
+    //
+    // In practice only ever called for Data/End/Abort: dispatch never forwards Start or
+    // Heartbeat blocks to a client's queue (see dispatch.rs), so `for_client.recv()` never
+    // yields one, but every arm calls `recycle` regardless so this stays true if that changes.
     let recycle = |receiver: &crate::Receiver<Lifecycle>, block: protocol::Block| {
-        let _ = receiver.decode_buf_recycler_tx.send(block.into_data());
+        let _ = receiver.decode_buf_recycler_tx.try_send(block.into_data());
     };
 
     loop {

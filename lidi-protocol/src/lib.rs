@@ -208,11 +208,12 @@ impl RaptorQ {
         raptorq::SourceBlockDecoder::new(block_id, &self.config, u64::from(self.transfer_length))
     }
 
-    /// Attempts to reconstruct the source data of block `block_id` from the received `packets`.
-    /// Accepting any `IntoIterator` (instead of requiring an owned `Vec`) lets callers pass a
-    /// `Vec::drain(..)` so they can recycle the emptied `Vec`'s allocation once decoding is done.
+    /// Attempts to reconstruct the source data from the received `packets` into `out`, using
+    /// `decoder` (see [`RaptorQ::new_decoder`]). `packets` is borrowed rather than consumed, and
+    /// `out` is cleared and reused in place, so the caller keeps ownership of both allocations.
     ///
-    /// Returns `None` if not enough packets were received to decode the block.
+    /// Returns `false` (leaving `out` untouched) if not enough packets were received to decode
+    /// the block.
     pub fn decode(
         &self,
         decoder: &mut raptorq::SourceBlockDecoder,
