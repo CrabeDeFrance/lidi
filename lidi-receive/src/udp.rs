@@ -5,6 +5,7 @@ use lidi_protocol as protocol;
 use std::{
     io,
     net::{self, ToSocketAddrs},
+    sync::OnceLock,
 };
 
 // Pops a drained batch sent back by reblock, falling back to a fresh, empty `Vec` if none is
@@ -20,6 +21,20 @@ fn take_recycled(
 // available yet (e.g. at start-up).
 fn take_recycled_buf(recycler: &crossbeam_channel::Receiver<Vec<u8>>) -> Vec<u8> {
     recycler.try_recv().unwrap_or_default()
+}
+
+#[cfg(feature = "prometheus")]
+mod metrics_handles {
+    use metrics::Counter;
+    use std::sync::OnceLock;
+
+    static UDP_PACKETS: OnceLock<Counter> = OnceLock::new();
+
+    pub fn udp_packets() -> Counter {
+        UDP_PACKETS
+            .get_or_init(|| metrics::counter!("lidi_receive_udp_packets"))
+            .clone()
+    }
 }
 
 // Updates `*session_id` and notifies reblock whenever a datagram's session id doesn't match the
@@ -111,7 +126,7 @@ where
             #[cfg(any(feature = "receive-native", feature = "receive-msg"))]
             socket::ReceiveDatagrams::Single(datagram) => {
                 #[cfg(feature = "prometheus")]
-                metrics::counter!("lidi_receive_udp_packets").increment(1);
+                metrics_handles::udp_packets().increment(1);
 
                 let (datagram_session_id, packet) = protocol::session_split(datagram);
 
@@ -132,7 +147,7 @@ where
             #[cfg(feature = "receive-mmsg")]
             socket::ReceiveDatagrams::Multiple(nb_msg, _) => {
                 #[cfg(feature = "prometheus")]
-                metrics::counter!("lidi_receive_udp_packets").increment(nb_msg as u64);
+                metrics_handles::udp_packets().increment(nb_msg as u64);
 
                 // assume all datagrams are from the same session
                 let datagram_session_id = protocol::session_split(udp.datagram(0)).0;
