@@ -1,7 +1,13 @@
 [workspace]
 members = [ "lidi-protocol", "lidi-send", "lidi-receive", "lidi-bindings", "lidi-clients", "lidi-command-utils" ]
 default-members = [ "lidi-send", "lidi-receive", "lidi-bindings", "lidi-clients" ]
+exclude = ["raptorq"]
 resolver = "3"
+
+# Local clone of https://github.com/CrabeDeFrance/raptorq, branch decode_to, patched to add a non-consuming,
+# output-buffer decode entry point for lidi-receive's hot path.
+[patch.crates-io]
+raptorq = { path = "raptorq" }
 
 [workspace.package]
 version = "3.0.0"
