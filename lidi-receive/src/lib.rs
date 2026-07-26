@@ -39,6 +39,17 @@ use std::net;
 use std::os::unix;
 use std::{fmt, io, os, thread, time};
 
+/// Number of empty `Vec<EncodingPacket>` batches pre-populated into the `packet_vec_recycler`
+/// pool. The channel bound is twice this so the pool can absorb transient bursts (e.g. both
+/// udp and reblock briefly holding a batch each) without falling back to allocating a new one.
+#[cfg(feature = "receive-mmsg")]
+const PACKET_VEC_POOL_SIZE: usize = 4;
+
+/// Number of MTU-sized `Vec<u8>` payload buffers pre-populated into the `payload_buf_recycler`
+/// pool. The channel bound is twice this for the same burst-absorption reason as
+/// `PACKET_VEC_POOL_SIZE`.
+const PAYLOAD_BUF_POOL_SIZE: usize = 2048;
+
 trait EncodingPacketExt {
     fn into_data(self) -> Vec<u8>;
     fn deserialize_into(data: &[u8], buf: Vec<u8>) -> Self;
@@ -53,10 +64,7 @@ impl EncodingPacketExt for raptorq::EncodingPacket {
         let payload_data = [data[0], data[1], data[2], data[3]];
         buf.clear();
         buf.extend_from_slice(&data[4..]);
-        Self::new(
-            raptorq::PayloadId::deserialize(&payload_data),
-            buf,
-        )
+        Self::new(raptorq::PayloadId::deserialize(&payload_data), buf)
     }
 }
 
@@ -567,28 +575,35 @@ where
             // each one back (emptied via drain) once processed, so udp can reuse it instead of
             // allocating, the same pattern as lidi-send's block_recycler. A plain SPSC channel
             // suffices since exactly one reblock thread and one udp thread share it per port.
+            // Bounded to the pre-populated pool size: crossbeam's unbounded (list) flavor
+            // allocates a new 31-slot block every 31 sends, which on this per-packet path shows
+            // up as an allocation scaling linearly with the number of packets transferred.
+            // Bounded uses the array flavor (one allocation, ever), and since this pool never
+            // needs to grow past what's pre-populated below, no capacity is lost.
             #[cfg(feature = "receive-mmsg")]
             let (packet_vec_recycler_tx, packet_vec_recycler_rx) =
-                crossbeam_channel::unbounded::<Vec<raptorq::EncodingPacket>>();
+                crossbeam_channel::bounded::<Vec<raptorq::EncodingPacket>>(
+                    PACKET_VEC_POOL_SIZE * 2,
+                );
 
             // Pre-populate the packet batch pool with empty vecs. This avoids allocations when
             // udp worker needs a batch.
             #[cfg(feature = "receive-mmsg")]
-            for _ in 0..4 {
+            for _ in 0..PACKET_VEC_POOL_SIZE {
                 let _ = packet_vec_recycler_tx.try_send(Vec::new());
             }
 
             // Recycles the Vec<u8> payload buffers from EncodingPackets: reblock drains each
             // packet's buffer from decoded blocks and sends it back via the channel, so udp can
-            // reuse it for the next packet's deserialization instead of allocating. SPSC per port.
+            // reuse it for the next packet's deserialization instead of allocating. SPSC per
+            // port. Bounded for the same reason as packet_vec_recycler above.
             let (payload_buf_recycler_tx, payload_buf_recycler_rx) =
-                crossbeam_channel::unbounded::<Vec<u8>>();
+                crossbeam_channel::bounded::<Vec<u8>>(PAYLOAD_BUF_POOL_SIZE * 2);
 
             // Pre-populate the payload buffer pool with buffers that have capacity for a full UDP
             // datagram. This avoids allocations during `extend_from_slice()` in deserialize_into().
-            for _ in 0..2048 {
-                let mut buf = Vec::new();
-                buf.reserve(self.config.mtu as usize);
+            for _ in 0..PAYLOAD_BUF_POOL_SIZE {
+                let buf = Vec::with_capacity(self.config.mtu as usize);
                 let _ = payload_buf_recycler_tx.try_send(buf);
             }
 

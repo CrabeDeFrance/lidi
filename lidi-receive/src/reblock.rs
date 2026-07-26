@@ -319,9 +319,9 @@ where
         }
 
         #[cfg(feature = "receive-mmsg")]
-        // Ignore the error: if the udp thread's receiver is gone, there's nothing to recycle
-        // into and the `Vec` is simply dropped.
-        let _ = packet_vec_recycler.send(packets);
+        // try_send: if the udp thread's receiver is gone, or the (bounded) pool is already full,
+        // there's nothing to recycle into and the `Vec` is simply dropped.
+        let _ = packet_vec_recycler.try_send(packets);
 
         if fast_track {
             log::warn!("probable network interrupt, fast track first block");
