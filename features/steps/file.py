@@ -164,6 +164,25 @@ def create_and_move_file(context, name, size):
     os.rename(tmpname, destname)
 
 
+def create_test_dir_in_place(context, name, size):
+    """Create the same dir hierarchy as create_and_move_test_dir(), but
+    directly in the send directory (no tmp dir + rename), so the entries
+    are already present before lidi-dir-send starts and can only be picked
+    up by its initial directory scan, never by an inotify event.
+    """
+    destname = os.path.join(context.send_dir, name)
+    dir_a = os.path.join(destname, ".A")
+    dir_b = os.path.join(destname, "B")
+    dir_bb = os.path.join(dir_b, "BB")
+    file_c = os.path.join(destname, ".C")
+    file_aa = os.path.join(dir_a, "AA")
+    os.makedirs(destname)
+    os.mkdir(dir_a)
+    os.makedirs(dir_bb)
+    create_file(context, file_aa, "0B")
+    create_file(context, file_c, size)
+
+
 def create_and_move_test_dir(context, name, size):
     """Create a dir hierarchy and move it to the send directory.
     The hierarchy contains an empty and a non-empty dir, + an empty and a non-empty file.

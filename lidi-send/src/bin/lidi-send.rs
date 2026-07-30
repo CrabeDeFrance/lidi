@@ -1,4 +1,6 @@
 use lidi_command_utils::config;
+#[cfg(feature = "from-unix")]
+use lidi_command_utils::socket::remove_stale_unix_socket;
 #[cfg(feature = "from-tls")]
 use lidi_command_utils::tls;
 use lidi_protocol as protocol;
@@ -334,9 +336,7 @@ fn main() {
                     }
                     #[cfg(feature = "from-unix")]
                     {
-                        if path.exists()
-                            && let Err(e) = std::fs::remove_file(&path)
-                        {
+                        if let Err(e) = remove_stale_unix_socket(&path) {
                             log::error!(
                                 "Unix socket path '{}' already exists and cannot be deleted: {e}",
                                 path.display()

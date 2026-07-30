@@ -27,6 +27,10 @@ version = "0"
 default-features = false
 features = [ "std" ]
 
+[dependencies.lidi-command-utils]
+path = "../lidi-command-utils"
+default-features = false
+
 [dependencies.log]
 version = "0"
 default-features = false

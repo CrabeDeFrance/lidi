@@ -51,3 +51,14 @@ Feature: Check lidi-dir-send is not sending ignored files
     And lidi-dir-send is started with non-recursive static watch and ignore dot files
     When we move a directory DIR of size 1KB in the input directory
     Then lidi-file-receive dir DIR in 5 seconds
+
+  Scenario: Ignore a dot directory that already exists before lidi-dir-send's initial recursive scan
+    # --ignore must be applied during the *initial* directory scan
+    # performed by send_dir(), not only to files that show up later
+    # through inotify.
+    Given lidi is started with max throughput of 100mbit
+    And a directory DIR with a dot subdirectory already exists in send directory
+    And lidi-dir-send is started with recursive dynamic watch and ignore dot files
+    Then lidi-file-receive no dir DIR in 5 seconds
+    And DIR/.A/AA exists in input directory
+    And DIR/.C exists in input directory

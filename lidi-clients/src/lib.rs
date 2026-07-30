@@ -7,6 +7,9 @@
 
 use std::{fmt, net, path};
 
+#[cfg(feature = "unix")]
+pub(crate) use lidi_command_utils::socket::remove_stale_unix_socket;
+
 #[cfg(not(any(feature = "tcp", feature = "tls", feature = "unix")))]
 compile_error!("at least one of tcp, tls, or unix features must be enabled");
 

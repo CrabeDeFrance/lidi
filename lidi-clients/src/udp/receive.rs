@@ -118,14 +118,12 @@ pub fn receive(
 
     #[cfg(feature = "unix")]
     if let Some(from_unix) = &config.diode.from_unix {
-        if from_unix.exists()
-            && let Err(e) = std::fs::remove_file(from_unix)
-        {
-            return Err(udp::Error::Other(format!(
+        crate::remove_stale_unix_socket(from_unix).map_err(|e| {
+            udp::Error::Other(format!(
                 "Unix socket path '{}' already exists and cannot be deleted: {e}",
                 from_unix.display()
-            )));
-        }
+            ))
+        })?;
 
         let server = unix::net::UnixListener::bind(from_unix)?;
         receive_unix_loop(config, to_udp_bind, to_udp, &server)?;

@@ -52,14 +52,12 @@ pub fn receive_files(
 
         #[cfg(feature = "unix")]
         if let Some(from_unix) = &config.diode.from_unix {
-            if from_unix.exists()
-                && let Err(e) = std::fs::remove_file(from_unix)
-            {
-                return Err(file::Error::Other(format!(
+            crate::remove_stale_unix_socket(from_unix).map_err(|e| {
+                file::Error::Other(format!(
                     "Unix socket path '{}' already exists and cannot be deleted: {e}",
                     from_unix.display()
-                )));
-            }
+                ))
+            })?;
 
             let server = unix::net::UnixListener::bind(from_unix)?;
             thread::Builder::new().spawn_scoped(scope, move || {

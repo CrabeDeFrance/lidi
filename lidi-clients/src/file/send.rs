@@ -312,6 +312,9 @@ pub fn send_dir(
             if closed {
                 return Ok(DirBehaviour::Skip);
             }
+            if should_ignore(config.ignore.as_ref(), path) {
+                return Ok(DirBehaviour::Skip);
+            }
             // if not --recursive, we send the directories that we see at the top level
             if (metadata.is_file() || !config.recursive)
                 && to_send.send(Some(path.to_owned())).is_err()

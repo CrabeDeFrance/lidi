@@ -122,7 +122,7 @@ class UdpServer:
                 break
 
 from features.steps.lidi import create_file, send_file, send_multiple_files, start_diode, start_lidi_file_receive, start_lidi_receive, start_lidi_send, start_lidi_send_dir, start_lidi_udp_send, start_lidi_udp_receive, start_throttled_diode, start_udp_tunnel_diode, stop_lidi_file_receive, stop_lidi_graceful, stop_lidi_receive, stop_lidi_send, stop_lidi_udp_send, stop_lidi_udp_receive, wait_for_port_bound
-from features.steps.file import create_and_copy_file, create_and_copy_multiple_files, create_and_move_file, parse_human_size, test_file, test_no_file, create_and_move_test_dir, wait_for_dir
+from features.steps.file import create_and_copy_file, create_and_copy_multiple_files, create_and_move_file, parse_human_size, test_file, test_no_file, create_and_move_test_dir, create_test_dir_in_place, wait_for_dir
 from features.steps.config import build_lidi_send_file_command
 
 use_step_matcher("cfparse")
@@ -198,7 +198,7 @@ def step_lidi_send_dir(context):
 
 
 @when('lidi-dir-send is started with recursive')
-def step_lidi_send_dir(context):
+def step_lidi_send_dir_recursive(context):
     start_lidi_send_dir(context, should_exit=True, recursive=True)
 
 @given('lidi is started with max throughput of {throughput} and MTU {mtu}')
@@ -334,6 +334,15 @@ def step_impl(context):
 @when(u'we copy a file {name} of size {size}')
 def step_impl(context, name, size):
     create_and_copy_file(context, name, size)
+
+@given(u'a directory {name} with a dot subdirectory already exists in send directory')
+def step_impl(context, name):
+    # Creates the DIR/.A/AA, DIR/B/BB, DIR/.C hierarchy directly in the send
+    # directory *before* lidi-dir-send is started, so it is only ever seen
+    # by the initial directory scan (never by a later inotify event). This
+    # exercises the --ignore filtering applied during that initial scan in
+    # send_dir().
+    create_test_dir_in_place(context, name, "1KB")
 
 @when(u'we copy {files} files of size {size}')
 def step_impl(context, files, size):
@@ -3424,3 +3433,46 @@ def step_check_receive_dir(context, name, seconds):
 @then('lidi-file-receive no dir {name} in {seconds} seconds')
 def step_check_no_receive_dir(context, name, seconds):
     wait_for_dir(context, name, seconds, False)
+
+
+# ---------------------------------------------------------------------------
+# lidi-file-receive --from-unix stale socket safety
+# ---------------------------------------------------------------------------
+
+@given('a regular file exists at the Unix socket path')
+def step_create_regular_file_at_unix_socket_path(context):
+    context.unix_socket_path = os.path.join(context.base_dir, "not_a_socket")
+    with open(context.unix_socket_path, 'w') as f:
+        f.write("this is a regular file, not a socket\n")
+
+
+@when('lidi-file-receive is started with --from-unix at that path')
+def step_start_file_receive_from_unix(context):
+    output_dir = os.path.join(context.base_dir, "unix_test_output")
+    os.makedirs(output_dir, exist_ok=True)
+    cmd = [
+        os.path.join(context.bin_dir, 'lidi-file-receive'),
+        '--from-unix', context.unix_socket_path,
+        output_dir,
+    ]
+    result = subprocess.run(cmd, timeout=5, text=True, capture_output=True)
+    context.unix_socket_test_result = result
+
+
+@then('lidi-file-receive exits with an error mentioning "{message}"')
+def step_check_error_message(context, message):
+    result = context.unix_socket_test_result
+    if result.returncode == 0:
+        raise Exception("Expected lidi-file-receive to exit with an error, but it succeeded")
+    if message not in result.stderr:
+        raise Exception(f'Expected "{message}" in stderr, got: {result.stderr}')
+
+
+@then('the regular file at the Unix socket path still exists and is unchanged')
+def step_check_regular_file_unchanged(context):
+    if not os.path.isfile(context.unix_socket_path):
+        raise Exception(f"{context.unix_socket_path} was deleted or is no longer a regular file")
+    with open(context.unix_socket_path) as f:
+        content = f.read()
+    if content != "this is a regular file, not a socket\n":
+        raise Exception(f"{context.unix_socket_path} content was modified: {content!r}")
